@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Obsidian & Notion Hybrid - Local Vault</title>
+  <style>
+    :root {
+      --bg-primary: #1e1e1e;
+      --bg-secondary: #252526;
+      --bg-hover: #2a2d2e;
+      --text-main: #d4d4d4;
+      --text-muted: #858585;
+      --accent: #75beff;
+      --link-color: #4ec9b0;
+      --border: #3c3c3c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      display: flex;
+      height: 100vh;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      overflow: hidden;
+    }
+
+    /* Modal for First Time Vault Setup */
+    #vault-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 32px;
+      max-width: 450px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+
+    .modal-card h2 { margin-bottom: 12px; font-size: 1.6rem; color: #fff; }
+    .modal-card p { margin-bottom: 24px; color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; }
+
+    /* Sidebar & Tree View */
+    #sidebar {
+      width: 280px;
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 12px;
+      user-select: none;
+    }
+
+    .vault-title-bar {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .btn {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #0e639c;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      font-weight: 600;
+    }
+
+    .btn:hover { background: #3c3c3c; }
+    .btn-primary:hover { background: #1177bb; }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    #file-tree {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .tree-folder {
+      margin-left: 8px;
+    }
+
+    .folder-label {
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 4px 6px;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+
+    .tree-file {
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-main);
+      font-size: 0.88rem;
+      margin-left: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .tree-file:hover, .tree-file.active {
+      background-color: var(--bg-hover);
+      color: #fff;
+    }
+
+    /* Status & Auto-save Indicator */
+    #save-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ec9b0;
+    }
+
+    /* Workspace */
+    #workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 8%;
+      overflow-y: auto;
+    }
+
+    #note-title {
+      font-size: 2rem;
+      font-weight: 700;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #fff;
+      margin-bottom: 16px;
+      width: 100%;
+    }
+
+    #editor {
+      flex: 1;
+      outline: none;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text-main);
+      min-height: 400px;
+      white-space: pre-wrap;
+    }
+
+    /* Highlighted Links & WikiLinks */
+    .md-link {
+      color: var(--link-color);
+      text-decoration: underline;
+      font-weight: 500;
+      cursor: pointer;
+      background: rgba(78, 201, 176, 0.1);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .wikilink {
+      color: var(--accent);
+      background: rgba(117, 190, 255, 0.15);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      border: 1px solid rgba(117, 190, 255, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- First Time Vault Modal -->
+  <div id="vault-modal">
+    <div class="modal-card">
+      <h2>Welcome to Your Vault</h2>
+      <p>Select or create a folder on your computer to act as your Obsidian-style Markdown vault. All notes and folders are saved directly to your local disk in real-time.</p>
+      <button class="btn btn-primary" onclick="openVaultDirectory()">📂 Open / Create Vault Folder</button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="vault-title-bar">
+      <span id="vault-name">No Vault Loaded</span>
+      <button class="btn" style="padding:2px 6px; font-size:0.75rem" onclick="openVaultDirectory()">Change</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn" onclick="createNewFile()">+ Note</button>
+      <button class="btn" onclick="createNewFolder()">+ Folder</button>
+    </div>
+
+    <div id="file-tree"></div>
+
+    <div id="save-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Vault Ready</span>
+    </div>
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace">
+    <input type="text" id="note-title" placeholder="Note Title..." oninput="triggerAutoSave()" />
+    <div id="editor" contenteditable="true" placeholder="Start typing... Links like https://google.com or [[WikiLink]] will auto-highlight." oninput="handleEditorInput()"></div>
+  </div>
+
+  <script>
+    let vaultHandle = null;
+    let activeFileHandle = null;
+    let saveTimeout = null;
+
+    // Check if browser supports local file access
+    if (!('showDirectoryPicker' in window)) {
+      alert("Your browser does not support local disk folder access. Please use Chrome, Edge, or Opera.");
+    }
+
+    /* Open / Create Vault Directory */
+    async function openVaultDirectory() {
+      try {
+        vaultHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        document.getElementById('vault-name').innerText = `📁 ${vaultHandle.name}`;
+        document.getElementById('vault-modal').style.display = 'none';
+        
+        await refreshFileTree();
+      } catch (err) {
+        console.log("Vault selection canceled.", err);
+      }
+    }
+
+    /* Refresh Sidebar Directory Tree */
+    async function refreshFileTree() {
+      const treeContainer = document.getElementById('file-tree');
+      treeContainer.innerHTML = '';
+      if (!vaultHandle) return;
+
+      await buildTree(vaultHandle, treeContainer);
+    }
+
+    async function buildTree(dirHandle, container) {
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'directory') {
+          const folderDiv = document.createElement('div');
+          folderDiv.className = 'tree-folder';
+          
+          const label = document.createElement('div');
+          label.className = 'folder-label';
+          label.innerText = `📂 ${entry.name}`;
+          folderDiv.appendChild(label);
+
+          const subContainer = document.createElement('div');
+          folderDiv.appendChild(subContainer);
+          container.appendChild(folderDiv);
+
+          await buildTree(entry, subContainer);
+        } else if (entry.kind === 'file' && (entry.name.endsWith('.md') || entry.name.endsWith('.txt'))) {
+          const fileDiv = document.createElement('div');
+          fileDiv.className = `tree-file ${activeFileHandle && activeFileHandle.name === entry.name ? 'active' : ''}`;
+          fileDiv.innerText = `📄 ${entry.name.replace(/\.md$/, '')}`;
+          fileDiv.onclick = () => loadFile(entry);
+          container.appendChild(fileDiv);
+        }
+      }
+    }
+
+    /* Create New Note (.md file on disk) */
+    async function createNewFile() {
+      if (!vaultHandle) return;
+      const fileName = prompt("Enter note name:", "Untitled");
+      if (!fileName) return;
+
+      const fullFileName = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
+      
+      try {
+        const fileHandle = await vaultHandle.getFileHandle(fullFileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(`# ${fileName}\n\nStart writing here...`);
+        await writable.close();
+
+        await refreshFileTree();
+        await loadFile(fileHandle);
+      } catch (err) {
+        console.error("Error creating file:", err);
+      }
+    }
+
+    /* Create New Subfolder */
+    async function createNewFolder() {
+      if (!vaultHandle) return;
+      const folderName = prompt("Enter folder name:");
+      if (!folderName) return;
+
+      try {
+        await vaultHandle.getDirectoryHandle(folderName, { create: true });
+        await refreshFileTree();
+      } catch (err) {
+        console.error("Error creating folder:", err);
+      }
+    }
+
+    /* Load File Content into Editor */
+    async function loadFile(fileHandle) {
+      activeFileHandle = fileHandle;
+      const file = await fileHandle.getFile();
+      const content = await file.text();
+
+      document.getElementById('note-title').value = fileHandle.name.replace(/\.md$/, '');
+      document.getElementById('editor').innerText = content;
+
+      highlightLinks();
+      refreshFileTree();
+    }
+
+    /* Save Changes directly to the Local .md File */
+    async function saveActiveFile() {
+      if (!activeFileHandle) return;
+
+      updateStatus("Saving...", "#e2c08d");
+      try {
+        const title = document.getElementById('note-title').value.trim();
+        const editorText = document.getElementById('editor').innerText;
+
+        const writable = await activeFileHandle.createWritable();
+        await writable.write(editorText);
+        await writable.close();
+
+        updateStatus("Saved to disk", "#4ec9b0");
+      } catch (err) {
+        updateStatus("Error saving", "#ff5555");
+        console.error("Save error:", err);
+      }
+    }
+
+    function triggerAutoSave() {
+      updateStatus("Unsaved changes...", "#e2c08d");
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(saveActiveFile, 800);
+    }
+
+    function handleEditorInput() {
+      highlightLinks();
+      triggerAutoSave();
+    }
+
+    /* Highlight Web Links & Obsidian WikiLinks [[Note Name]] */
+    function highlightLinks() {
+      const editor = document.getElementById('editor');
+      const selection = window.getSelection();
+      
+      // Prevent cursor jump during simple text replacement
+      const rawText = editor.innerText;
+      
+      // Regex for URLs and [[WikiLinks]]
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const wikiRegex = /(\[\[.*?\]\])/g;
+
+      let html = rawText
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(urlRegex, '<span class="md-link" onclick="window.open(\'$1\', \'_blank\')">$1</span>')
+        .replace(wikiRegex, '<span class="wikilink">$1</span>');
+
+      // Update innerHTML only if highlights modified structure
+      if (editor.innerHTML !== html && !editor.isComposing) {
+        const caretPos = getCaretCharacterOffsetWithin(editor);
+        editor.innerHTML = html;
+        setCaretPosition(editor, caretPos);
+      }
+    }
+
+    function updateStatus(text, color) {
+      document.getElementById('status-text').innerText = text;
+      document.getElementById('status-dot').style.background = color;
+    }
+
+    /* Caret Position Helpers for Editable Div */
+    function getCaretCharacterOffsetWithin(element) {
+      let caretOffset = 0;
+      const doc = element.ownerDocument || element.document;
+      const win = doc.defaultView || doc.parentWindow;
+      const sel = win.getSelection();
+      if (sel.rangeCount > 0) {
+        const range = win.getSelection().getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(element);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        caretOffset = preCaretRange.toString().length;
+      }
+      return caretOffset;
+    }
+
+    function setCaretPosition(el, pos) {
+      for (let node of el.childNodes) {
+        if (node.nodeType === 3) {
+          if (node.length >= pos) {
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.setStart(node, pos);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            return;
+          } else {
+            pos -= node.length;
+          }
+        } else {
+          pos = setCaretPosition(node, pos);
+          if (pos < 0) return;
+        }
+      }
+      return pos;
+    }
+  </script>
+</body>
+</html>

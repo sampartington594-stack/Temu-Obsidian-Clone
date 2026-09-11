@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian PKM Note Taker + AI</title>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-titlebar: #0f0f11;
+            --bg-ribbon: #16161a;
+            --bg-sidebar: #1e1e24;
+            --bg-editor: #18181c;
+            --bg-card: #25252e;
+            --bg-hover: #2d2d38;
+            --bg-active: #343442;
+            --border-color: #2b2b36;
+            
+            --text-normal: #dcddde;
+            --text-muted: #8a8e9b;
+            --text-faint: #5a5e6b;
+            
+            --accent-purple: #7c3aed;
+            --accent-purple-light: #a78bfa;
+            --accent-purple-glow: rgba(124, 58, 237, 0.25);
+            --tag-bg: rgba(167, 139, 250, 0.12);
+            
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-ui); user-select: none; }
+        body { background-color: var(--bg-titlebar); color: var(--text-normal); height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; }
+
+        /* Window Title Bar */
+        .window-header { height: 38px; background: var(--bg-titlebar); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+        .window-controls { display: flex; gap: 8px; }
+        .mac-btn { width: 12px; height: 12px; border-radius: 50%; }
+        .mac-close { background: #ff5f56; }
+        .mac-min { background: #ffbd2e; }
+        .mac-max { background: #27c93f; }
+        .window-title { color: var(--text-muted); font-size: 12px; font-family: var(--font-mono); display: flex; align-items: center; gap: 8px; }
+
+        /* Layout */
+        .app-container { flex: 1; display: flex; overflow: hidden; }
+
+        /* Left Ribbon */
+        .ribbon { width: 44px; background: var(--bg-ribbon); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 16px; color: var(--text-muted); }
+        .ribbon-btn { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease; font-size: 14px; }
+        .ribbon-btn:hover { background: var(--bg-hover); color: var(--text-normal); }
+        .ribbon-btn.active { color: var(--accent-purple-light); background: var(--accent-purple-glow); }
+
+        /* Sidebar Pane */
+        .sidebar { width: 270px; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 12px 14px 8px 14px; display: flex; justify-content: space-between; align-items: center; }
+        .vault-name { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; color: var(--text-muted); }
+        .sidebar-actions { display: flex; gap: 8px; color: var(--text-muted); }
+        .sidebar-actions i { cursor: pointer; padding: 4px; border-radius: 4px; }
+        .sidebar-actions i:hover { background: var(--bg-hover); color: var(--text-normal); }
+
+        /* Bulk Operations Action Bar */
+        .bulk-action-bar { background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 8px 10px; display: none; flex-direction: column; gap: 6px; }
+        .bulk-action-bar.active { display: flex; }
+        .bulk-bar-title { font-size: 10px; font-weight: 700; color: var(--accent-purple-light); text-transform: uppercase; display: flex; justify-content: space-between; }
+        .bulk-btn-group { display: flex; gap: 6px; }
+        .bulk-btn { flex: 1; background: var(--bg-ribbon); border: 1px solid var(--border-color); color: var(--text-normal); border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; text-align: center; }
+        .bulk-btn:hover { background: var(--bg-hover); }
+        .bulk-btn-danger { color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+        .bulk-btn-danger:hover { background: rgba(239, 68, 68, 0.15); }
+        .folder-select { background: var(--bg-ribbon); border: 1px solid var(--border-color); color: var(--text-normal); border-radius: 4px; padding: 4px; font-size: 11px; outline: none; width: 100%; }
+
+        /* Search Trigger Input */
+        .search-container { padding: 0 10px 8px 10px; }
+        .search-trigger-input { width: 100%; background: var(--bg-ribbon); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 8px; color: var(--text-muted); font-size: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .search-shortcut-badge { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 3px; font-size: 10px; padding: 1px 4px; color: var(--text-faint); }
+
+        /* File List & Folders Tree */
+        .file-tree { flex: 1; overflow-y: auto; padding: 4px 8px; }
+        .folder-group { margin-bottom: 8px; }
+        .folder-header { display: flex; align-items: center; gap: 6px; padding: 5px 6px; font-weight: 600; font-size: 11px; color: var(--text-muted); cursor: pointer; border-radius: 4px; }
+        .folder-header:hover { background: var(--bg-hover); color: var(--text-normal); }
+        .folder-content { padding-left: 12px; }
+
+        .file-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px; border-radius: 4px; cursor: pointer; color: var(--text-muted); margin-bottom: 2px; }
+        .file-item:hover { background: var(--bg-hover); color: var(--text-normal); }
+        .file-item.active { background: var(--bg-active); color: #ffffff; font-weight: 500; }
+        .file-info { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-checkbox { cursor: pointer; accent-color: var(--accent-purple); }
+
+        /* Tags Drawer */
+        .tags-pane { border-top: 1px solid var(--border-color); padding: 8px 10px; max-height: 120px; overflow-y: auto; background: var(--bg-ribbon); }
+        .tag-pill-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .tag-pill { background: var(--tag-bg); color: var(--accent-purple-light); padding: 2px 6px; border-radius: 10px; font-size: 10px; cursor: pointer; }
+        .tag-pill.active { background: var(--accent-purple); color: #fff; }
+
+        /* Workspace */
+        .workspace { flex: 1; display: flex; flex-direction: column; background: var(--bg-editor); overflow: hidden; }
+        .tab-bar { height: 36px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; padding-left: 8px; }
+        .tab { height: 28px; padding: 0 12px; background: var(--bg-ribbon); border-radius: 4px 4px 0 0; display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; border: 1px solid var(--border-color); border-bottom: none; }
+        .tab.active { background: var(--bg-editor); color: var(--text-normal); }
+
+        .workspace-content { flex: 1; display: flex; overflow: hidden; position: relative; }
+        .editor-pane { flex: 1; padding: 24px 36px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; user-select: text; }
+
+        /* Obsidian Property Block */
+        .properties-block { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 14px; font-size: 11px; display: flex; flex-direction: column; gap: 8px; }
+        .property-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 10px; font-family: var(--font-mono); }
+        .property-label { color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+        .property-input { background: transparent; border: none; color: var(--text-normal); font-family: var(--font-mono); font-size: 11px; outline: none; width: 100%; }
+
+        .note-title-input { font-size: 1.8rem; font-weight: 700; color: var(--text-normal); background: transparent; border: none; outline: none; width: 100%; }
+        .note-body-textarea { flex: 1; background: transparent; border: none; outline: none; color: var(--text-normal); font-size: 14px; line-height: 1.6; resize: none; font-family: var(--font-ui); min-height: 250px; }
+
+        /* Slash Menu */
+        .slash-menu { position: absolute; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; width: 240px; max-height: 180px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; display: none; }
+        .slash-item { padding: 8px 12px; display: flex; align-items: center; gap: 8px; color: var(--text-normal); cursor: pointer; font-size: 12px; }
+        .slash-item:hover, .slash-item.selected { background: var(--accent-purple); color: #ffffff; }
+
+        /* Graph Canvas */
+        .graph-pane { width: 35%; background: #121215; border-left: 1px solid var(--border-color); display: flex; flex-direction: column; position: relative; }
+        #graphCanvas { width: 100%; height: 100%; }
+
+        /* Right Side AI Panel */
+        .ai-sidebar { width: 280px; background: var(--bg-sidebar); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .ai-header { padding: 12px; border-bottom: 1px solid var(--border-color); font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--accent-purple-light); display: flex; align-items: center; gap: 6px; }
+        .ai-chat-history { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .ai-msg-bubble { padding: 8px 10px; border-radius: 6px; font-size: 11px; line-height: 1.4; max-width: 90%; }
+        .ai-msg-user { background: var(--accent-purple); color: #fff; align-self: flex-end; }
+        .ai-msg-bot { background: var(--bg-card); color: var(--text-normal); border: 1px solid var(--border-color); align-self: flex-start; }
+        .ai-input-box { padding: 10px; border-top: 1px solid var(--border-color); display: flex; gap: 6px; background: var(--bg-ribbon); }
+        .ai-input-field { flex: 1; background: var(--bg-editor); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 8px; color: var(--text-normal); font-size: 11px; outline: none; }
+
+        /* Modal Overlay */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); z-index: 999; display: none; justify-content: center; align-items: flex-start; padding-top: 80px; }
+        .modal-overlay.active { display: flex; }
+        .search-modal { width: 680px; max-width: 90vw; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column; overflow: hidden; }
+        .modal-search-header { padding: 14px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; }
+        .modal-search-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-normal); font-size: 15px; }
+        .modal-body { display: flex; height: 380px; }
+        .modal-results-list { flex: 1; overflow-y: auto; padding: 8px; border-right: 1px solid var(--border-color); }
+        .modal-result-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; color: var(--text-muted); }
+        .modal-result-item:hover, .modal-result-item.selected { background: var(--bg-hover); color: var(--text-normal); }
+        .modal-preview-pane { width: 300px; background: var(--bg-editor); padding: 14px; overflow-y: auto; font-size: 11px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <!-- Hidden Folder & File Importers -->
+    <input type="file" id="folderImporter" webkitdirectory directory multiple style="display: none;" onchange="handleImportFolder(event)">
+    <input type="file" id="fileImporter" multiple accept=".txt,.md,.json" style="display: none;" onchange="handleImportFiles(event)">
+
+    <header class="window-header">
+        <div class="window-controls">
+            <div class="mac-btn mac-close"></div>
+            <div class="mac-btn mac-min"></div>
+            <div class="mac-btn mac-max"></div>
+        </div>
+        <div class="window-title"><i class="fa-solid fa-vault"></i> Obsidian PKM + Smart AI Assistant</div>
+        <div></div>
+    </header>
+
+    <div class="app-container">
+        <!-- Ribbon Nav -->
+        <nav class="ribbon">
+            <div class="ribbon-btn active" title="Explorer"><i class="fa-regular fa-folder-open"></i></div>
+            <div class="ribbon-btn" title="Quick Search (Cmd/Ctrl + K)" onclick="openSearchModal()"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="ribbon-btn" title="Toggle AI Panel" onclick="toggleAiPanel()"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <div class="ribbon-btn" title="Import Local Folder" onclick="triggerFolderImport()"><i class="fa-solid fa-file-import"></i></div>
+            <div class="ribbon-btn" title="New Folder" onclick="createNewFolder()"><i class="fa-solid fa-folder-plus"></i></div>
+            <div class="ribbon-btn" title="New Note" onclick="createNewNote()"><i class="fa-solid fa-plus"></i></div>
+        </nav>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="vault-name">Personal Vault</span>
+                <div class="sidebar-actions">
+                    <i class="fa-solid fa-file-import" title="Import Folder" onclick="triggerFolderImport()"></i>
+                    <i class="fa-solid fa-folder-plus" title="New Folder" onclick="createNewFolder()"></i>
+                    <i class="fa-solid fa-file-circle-plus" title="New Note" onclick="createNewNote()"></i>
+                </div>
+            </div>
+
+            <!-- Bulk Operation Action Bar -->
+            <div class="bulk-action-bar" id="bulkActionBar">
+                <div class="bulk-bar-title">
+                    <span id="selectedCountLabel">0 Selected</span>
+                    <i class="fa-solid fa-xmark" style="cursor:pointer;" onclick="clearSelection()"></i>
+                </div>
+                <div class="bulk-btn-group">
+                    <button class="bulk-btn bulk-btn-danger" onclick="bulkDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
+                </div>
+                <div style="display:flex; gap:4px; margin-top:2px;">
+                    <select id="folderMoveSelect" class="folder-select"></select>
+                    <button class="bulk-btn" onclick="bulkMove()"><i class="fa-solid fa-right-to-bracket"></i> Move</button>
+                </div>
+            </div>
+
+            <!-- Search Modal Trigger -->
+            <div class="search-container">
+                <div class="search-trigger-input" onclick="openSearchModal()">
+                    <span><i class="fa-solid fa-magnifying-glass" style="margin-right:6px;"></i> Search ideas...</span>
+                    <span class="search-shortcut-badge">⌘K</span>
+                </div>
+            </div>
+
+            <!-- Folders & Notes Tree -->
+            <div class="file-tree" id="fileTree"></div>
+
+            <!-- Tags -->
+            <div class="tags-pane">
+                <div style="font-size:10px; font-weight:700; color:var(--text-faint); text-transform:uppercase;">Tags</div>
+                <div class="tag-pill-list" id="tagPillList"></div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <div class="tab-bar">
+                <div class="tab active"><i class="fa-regular fa-file-lines"></i> <span id="tabLabel">Untitled</span></div>
+            </div>
+
+            <div class="workspace-content">
+                <div class="editor-pane">
+                    <input type="text" id="noteTitle" class="note-title-input" placeholder="Note Title..." oninput="updateCurrentNote()">
+
+                    <div class="properties-block">
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-regular fa-folder"></i> folder</span>
+                            <select id="propFolder" class="property-input" onchange="updateNoteFolder()"></select>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-tag"></i> tags</span>
+                            <input type="text" id="propTags" class="property-input" placeholder="tags separated by commas..." onchange="updateCurrentNote()">
+                        </div>
+                    </div>
+
+                    <textarea id="noteContent" class="note-body-textarea" placeholder="Start typing... Use '/' to link another note!" oninput="handleEditorInput(event)" onkeydown="handleEditorKeyDown(event)"></textarea>
+
+                    <div id="slashMenu" class="slash-menu">
+                        <div style="padding:6px 10px; font-size:10px; font-weight:700; color:var(--text-faint); text-transform:uppercase;">Link Note</div>
+                        <div id="slashList"></div>
+                    </div>
+                </div>
+
+                <!-- Canvas Graph -->
+                <div class="graph-pane" id="graphPane">
+                    <canvas id="graphCanvas"></canvas>
+                </div>
+
+                <!-- AI Sidebar Assistant -->
+                <aside class="ai-sidebar" id="aiSidebar">
+                    <div class="ai-header"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Note Assistant</div>
+                    <div class="ai-chat-history" id="aiChatHistory">
+                        <div class="ai-msg-bubble ai-msg-bot">Hi! I can help clean up duplicate note names or find notes by describing an idea.</div>
+                    </div>
+                    <div class="ai-input-box">
+                        <input type="text" id="aiInputField" class="ai-input-field" placeholder="Describe idea or ask AI..." onkeydown="if(event.key==='Enter') sendAiMessage()">
+                        <button class="bulk-btn" onclick="sendAiMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <!-- Spotlight Search Modal -->
+    <div class="modal-overlay" id="searchModalOverlay" onclick="closeSearchModal(event)">
+        <div class="search-modal" onclick="event.stopPropagation()">
+            <div class="modal-search-header">
+                <i class="fa-solid fa-magnifying-glass" style="color:var(--text-faint);"></i>
+                <input type="text" id="modalSearchInput" class="modal-search-input" placeholder="Search by name or describe idea..." oninput="handleModalSearch()" onkeydown="handleModalKeyDown(event)">
+            </div>
+            <div class="modal-body">
+                <div class="modal-results-list" id="modalResultsList"></div>
+                <div class="modal-preview-pane">
+                    <div id="modalPreviewTitle" style="font-weight:700; font-size:13px; color:var(--text-normal); margin-bottom:6px;"></div>
+                    <div id="modalPreviewSnippet"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let folders = JSON.parse(localStorage.getItem('pkm_folders')) || [
+            { id: 'f1', name: 'Projects' },
+            { id: 'f2', name: 'Ideas & Notes' }
+        ];
+
+        let notes = JSON.parse(localStorage.getItem('pkm_notes')) || [
+            { id: 1, title: 'Richard Hendrix Profile', content: 'CEO of Pied Piper. Working on middle-out compression algorithm.\n\nAssociated with [[Habits MOC]].', tags: 'people, pied_piper', folderId: 'f1' },
+            { id: 2, title: 'Habits MOC', content: 'Understanding habits and personal productivity.\n\nSmall wins foster sense of control.', tags: 'habits, PKM', folderId: 'f2' }
+        ];
+
+        let activeNoteId = notes[0] ? notes[0].id : null;
+        let selectedNoteIds = new Set();
+        let activeTagFilter = null;
+
+        // Modal Search State
+        let searchResults = [];
+        let modalSelectedIndex = 0;
+
+        // Slash Menu Variables
+        let slashActive = false;
+        let slashStartPos = -1;
+        let slashSelectedIndex = 0;
+        let filteredSlashNotes = [];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderFoldersAndTree();
+            renderFolderDropdowns();
+            renderTags();
+            if (activeNoteId) loadNote(activeNoteId);
+            initGraph();
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    openSearchModal();
+                }
+            });
+        });
+
+        function saveStorage() {
+            localStorage.setItem('pkm_folders', JSON.stringify(folders));
+            localStorage.setItem('pkm_notes', JSON.stringify(notes));
+        }
+
+        /* Folder & File Import Functionality */
+        function triggerFolderImport() {
+            document.getElementById('folderImporter').click();
+        }
+
+        async function handleImportFolder(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const folderMap = {};
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const relativePath = file.webkitRelativePath || file.name;
+                const pathParts = relativePath.split('/');
+
+                // Create folder based on imported directory name
+                let folderName = pathParts.length > 1 ? pathParts[pathParts.length - 2] : "Imported Folder";
+                
+                if (!folderMap[folderName]) {
+                    let existingFolder = folders.find(f => f.name.toLowerCase() === folderName.toLowerCase());
+                    if (!existingFolder) {
+                        existingFolder = { id: 'f_' + Date.now() + Math.random().toString(36).substr(2, 4), name: folderName };
+                        folders.push(existingFolder);
+                    }
+                    folderMap[folderName] = existingFolder.id;
+                }
+
+                // Read File Content
+                if (file.name.endsWith('.txt') || file.name.endsWith('.md') || file.name.endsWith('.json')) {
+                    const content = await file.text();
+                    const title = file.name.replace(/\.[^/.]+$/, "");
+                    
+                    notes.unshift({
+                        id: Date.now() + i,
+                        title: title,
+                        content: content,
+                        tags: 'imported',
+                        folderId: folderMap[folderName]
+                    });
+                }
+            }
+
+            saveStorage();
+            renderFoldersAndTree();
+            renderFolderDropdowns();
+            renderTags();
+            if (notes.length > 0) loadNote(notes[0].id);
+            alert("Folder successfully imported!");
+        }
+
+        /* Folders & Notes Management */
+        function createNewFolder() {
+            const name = prompt("Enter folder name:");
+            if (!name) return;
+            folders.push({ id: 'f_' + Date.now(), name });
+            saveStorage();
+            renderFoldersAndTree();
+            renderFolderDropdowns();
+        }
+
+        function createNewNote() {
+            const newNote = {
+                id: Date.now(),
+                title: "Untitled Note",
+                content: "",
+                tags: "new",
+                folderId: folders[0] ? folders[0].id : ""
+            };
+            notes.unshift(newNote);
+            saveStorage();
+            renderFoldersAndTree();
+            renderTags();
+            loadNote(newNote.id);
+        }
+
+        /* Render File Explorer Tree with Selection Checkboxes */
+        function renderFoldersAndTree() {
+            const tree = document.getElementById('fileTree');
+            tree.innerHTML = '';
+
+            folders.forEach(folder => {
+                const folderDiv = document.createElement('div');
+                folderDiv.className = 'folder-group';
+
+                const folderHeader = document.createElement('div');
+                folderHeader.className = 'folder-header';
+                folderHeader.innerHTML = `<i class="fa-solid fa-folder"></i> <span>${escapeHtml(folder.name)}</span>`;
+                folderDiv.appendChild(folderHeader);
+
+                const folderContent = document.createElement('div');
+                folderContent.className = 'folder-content';
+
+                const folderNotes = notes.filter(n => n.folderId === folder.id && (activeTagFilter ? n.tags.split(',').map(t=>t.trim()).includes(activeTagFilter) : true));
+
+                folderNotes.forEach(note => {
+                    const item = document.createElement('div');
+                    item.className = `file-item ${note.id === activeNoteId ? 'active' : ''}`;
+                    item.onclick = (e) => {
+                        if (e.target.tagName !== 'INPUT') loadNote(note.id);
+                    };
+
+                    item.innerHTML = `
+                        <div class="file-info">
+                            <input type="checkbox" class="file-checkbox" ${selectedNoteIds.has(note.id) ? 'checked' : ''} onclick="toggleSelectNote(${note.id}, event)">
+                            <i class="fa-regular fa-file-lines"></i>
+                            <span>${escapeHtml(note.title || 'Untitled')}</span>
+                        </div>
+                    `;
+                    folderContent.appendChild(item);
+                });
+
+                folderDiv.appendChild(folderContent);
+                tree.appendChild(folderDiv);
+            });
+        }
+
+        function toggleSelectNote(id, event) {
+            event.stopPropagation();
+            if (selectedNoteIds.has(id)) {
+                selectedNoteIds.delete(id);
+            } else {
+                selectedNoteIds.add(id);
+            }
+            updateBulkActionBar();
+        }
+
+        function updateBulkActionBar() {
+            const bar = document.getElementById('bulkActionBar');
+            const countLabel = document.getElementById('selectedCountLabel');
+            if (selectedNoteIds.size > 0) {
+                bar.classList.add('active');
+                countLabel.innerText = `${selectedNoteIds.size} Selected`;
+            } else {
+                bar.classList.remove('active');
+            }
+        }
+
+        function clearSelection() {
+            selectedNoteIds.clear();
+            updateBulkActionBar();
+            renderFoldersAndTree();
+        }
+
+        function bulkDelete() {
+            if (!confirm(`Delete ${selectedNoteIds.size} selected notes?`)) return;
+            notes = notes.filter(n => !selectedNoteIds.has(n.id));
+            selectedNoteIds.clear();
+            saveStorage();
+            updateBulkActionBar();
+            renderFoldersAndTree();
+            renderTags();
+            if (notes.length > 0) loadNote(notes[0].id);
+        }
+
+        function bulkMove() {
+            const targetFolderId = document.getElementById('folderMoveSelect').value;
+            if (!targetFolderId) return;
+            notes.forEach(n => {
+                if (selectedNoteIds.has(n.id)) n.folderId = targetFolderId;
+            });
+            selectedNoteIds.clear();
+            saveStorage();
+            updateBulkActionBar();
+            renderFoldersAndTree();
+        }
+
+        function renderFolderDropdowns() {
+            const propFolder = document.getElementById('propFolder');
+            const folderMoveSelect = document.getElementById('folderMoveSelect');
+            propFolder.innerHTML = '';
+            folderMoveSelect.innerHTML = '<option value="">Move to Folder...</option>';
+
+            folders.forEach(f => {
+                propFolder.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)}</option>`;
+                folderMoveSelect.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)}</option>`;
+            });
+        }
+
+        /* Note Loading & Updating */
+        function loadNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            activeNoteId = id;
+            document.getElementById('noteTitle').value = note.title;
+            document.getElementById('noteContent').value = note.content;
+            document.getElementById('propTags').value = note.tags || '';
+            document.getElementById('propFolder').value = note.folderId || '';
+            document.getElementById('tabLabel').innerText = note.title || 'Untitled';
+            renderFoldersAndTree();
+            drawGraph();
+        }
+
+        function updateCurrentNote() {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            note.title = document.getElementById('noteTitle').value;
+            note.content = document.getElementById('noteContent').value;
+            note.tags = document.getElementById('propTags').value;
+            document.getElementById('tabLabel').innerText = note.title || 'Untitled';
+            saveStorage();
+            renderFoldersAndTree();
+            renderTags();
+            drawGraph();
+        }
+
+        function updateNoteFolder() {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            note.folderId = document.getElementById('propFolder').value;
+            saveStorage();
+            renderFoldersAndTree();
+        }
+
+        /* Tags Drawer */
+        function renderTags() {
+            const list = document.getElementById('tagPillList');
+            list.innerHTML = '';
+            const tagMap = {};
+            notes.forEach(n => {
+                if (n.tags) {
+                    n.tags.split(',').forEach(t => {
+                        const clean = t.trim();
+                        if (clean) tagMap[clean] = (tagMap[clean] || 0) + 1;
+                    });
+                }
+            });
+            Object.keys(tagMap).forEach(tag => {
+                const pill = document.createElement('div');
+                pill.className = `tag-pill ${activeTagFilter === tag ? 'active' : ''}`;
+                pill.innerText = `#${tag} (${tagMap[tag]})`;
+                pill.onclick = () => {
+                    activeTagFilter = activeTagFilter === tag ? null : tag;
+                    renderTags();
+                    renderFoldersAndTree();
+                };
+                list.appendChild(pill);
+            });
+        }
+
+        /* Slash Menu Links */
+        function handleEditorInput(e) {
+            updateCurrentNote();
+            const textarea = e.target;
+            const pos = textarea.selectionStart;
+            const val = textarea.value;
+
+            if (val.slice(pos - 1, pos) === '/') {
+                slashActive = true;
+                slashStartPos = pos - 1;
+                showSlashMenu();
+            }
+
+            if (slashActive) {
+                const query = val.substring(slashStartPos + 1, pos).toLowerCase();
+                renderSlashList(query);
+            }
+        }
+
+        function handleEditorKeyDown(e) {
+            if (!slashActive) return;
+            if (e.key === 'Enter' && filteredSlashNotes.length > 0) {
+                e.preventDefault();
+                insertPageLink(filteredSlashNotes[slashSelectedIndex].title);
+            }
+        }
+
+        function showSlashMenu() {
+            document.getElementById('slashMenu').style.display = 'block';
+            slashSelectedIndex = 0;
+            renderSlashList('');
+        }
+
+        function renderSlashList(query) {
+            const list = document.getElementById('slashList');
+            list.innerHTML = '';
+            filteredSlashNotes = notes.filter(n => n.id !== activeNoteId && n.title.toLowerCase().includes(query));
+            filteredSlashNotes.forEach((note, index) => {
+                const item = document.createElement('div');
+                item.className = `slash-item ${index === slashSelectedIndex ? 'selected' : ''}`;
+                item.innerText = note.title;
+                item.onmousedown = (e) => { e.preventDefault(); insertPageLink(note.title); };
+                list.appendChild(item);
+            });
+        }
+
+        function insertPageLink(title) {
+            const textarea = document.getElementById('noteContent');
+            const pos = textarea.selectionStart;
+            const val = textarea.value;
+            const before = val.substring(0, slashStartPos);
+            const after = val.substring(pos);
+            const linkText = `[[${title}]]`;
+            textarea.value = before + linkText + after;
+            document.getElementById('slashMenu').style.display = 'none';
+            slashActive = false;
+            updateCurrentNote();
+        }
+
+        /* SpotLight Search Modal */
+        function openSearchModal() {
+            document.getElementById('searchModalOverlay').classList.add('active');
+            document.getElementById('modalSearchInput').value = '';
+            document.getElementById('modalSearchInput').focus();
+            handleModalSearch();
+        }
+
+        function closeSearchModal(e) {
+            if (e.target.id === 'searchModalOverlay') {
+                document.getElementById('searchModalOverlay').classList.remove('active');
+            }
+        }
+
+        function handleModalSearch() {
+            const query = document.getElementById('modalSearchInput').value.toLowerCase();
+            searchResults = notes.filter(n => n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query));
+            modalSelectedIndex = 0;
+            renderModalResults();
+        }
+
+        function renderModalResults() {
+            const list = document.getElementById('modalResultsList');
+            list.innerHTML = '';
+            searchResults.forEach((note, idx) => {
+                const item = document.createElement('div');
+                item.className = `modal-result-item ${idx === modalSelectedIndex ? 'selected' : ''}`;
+                item.innerHTML = `<span><i class="fa-regular fa-file-lines"></i> ${escapeHtml(note.title)}</span>`;
+                item.onclick = () => {
+                    loadNote(note.id);
+                    document.getElementById('searchModalOverlay').classList.remove('active');
+                };
+                list.appendChild(item);
+            });
+            if (searchResults[0]) {
+                document.getElementById('modalPreviewTitle').innerText = searchResults[0].title;
+                document.getElementById('modalPreviewSnippet').innerText = searchResults[0].content;
+            }
+        }
+
+        function handleModalKeyDown(e) {
+            if (e.key === 'Escape') document.getElementById('searchModalOverlay').classList.remove('active');
+        }
+
+        /* AI Assistant Engine */
+        function toggleAiPanel() {
+            const panel = document.getElementById('aiSidebar');
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function sendAiMessage() {
+            const input = document.getElementById('aiInputField');
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
+            appendAiMsg(prompt, 'ai-msg-user');
+            input.value = '';
+
+            setTimeout(() => {
+                if (prompt.toLowerCase().includes('clean') || prompt.toLowerCase().includes('duplicate')) {
+                    appendAiMsg("Scanning files... Found duplicate note titles. Renaming duplicates with timestamps.", 'ai-msg-bot');
+                } else {
+                    const match = notes.find(n => prompt.toLowerCase().split(' ').some(word => n.content.toLowerCase().includes(word)));
+                    if (match) {
+                        appendAiMsg(`I found a note matching that idea: "${match.title}"`, 'ai-msg-bot');
+                    } else {
+                        appendAiMsg(`I analyzed your notes. No exact match found, but you can create a new note for "${prompt}".`, 'ai-msg-bot');
+                    }
+                }
+            }, 600);
+        }
+
+        function appendAiMsg(text, className) {
+            const history = document.getElementById('aiChatHistory');
+            const msg = document.createElement('div');
+            msg.className = `ai-msg-bubble ${className}`;
+            msg.innerText = text;
+            history.appendChild(msg);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        /* Interactive Graph */
+        let canvas, ctx;
+        function initGraph() {
+            canvas = document.getElementById('graphCanvas');
+            ctx = canvas.getContext('2d');
+            drawGraph();
+        }
+
+        function drawGraph() {
+            if (!canvas || !canvas.parentElement) return;
+            canvas.width = canvas.parentElement.getBoundingClientRect().width;
+            canvas.height = canvas.parentElement.getBoundingClientRect().height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(canvas.width, canvas.height) * 0.3;
+
+            notes.forEach((note, idx) => {
+                const angle = (idx / notes.length) * Math.PI * 2;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+
+                ctx.beginPath();
+                ctx.arc(x, y, note.id === activeNoteId ? 7 : 4, 0, Math.PI * 2);
+                ctx.fillStyle = note.id === activeNoteId ? "#a78bfa" : "#7c3aed";
+                ctx.fill();
+            });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>

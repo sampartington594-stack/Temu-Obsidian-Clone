@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian Web Clone - Local PKM</title>
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-sidebar: #252526;
+            --bg-active: #37373d;
+            --border-color: #333333;
+            --text-main: #dcddde;
+            --text-muted: #8e8e93;
+            --accent-purple: #7d5fff;
+            --accent-hover: #6c5ce7;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        #sidebar {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        .sidebar-header {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn {
+            background-color: var(--accent-purple);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background-color: #3a3a3c;
+        }
+        .btn-secondary:hover {
+            background-color: #48484a;
+        }
+
+        #file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .file-item {
+            padding: 6px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-item:hover {
+            background-color: #2a2d2e;
+        }
+
+        .file-item.active {
+            background-color: var(--bg-active);
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Main Workspace Styles */
+        #workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-bar {
+            height: 40px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            background-color: var(--bg-sidebar);
+        }
+
+        .active-tab-title {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .editor-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+
+        /* Split Editor & Preview Panels */
+        .panel {
+            flex: 1;
+            height: 100%;
+            overflow-y: auto;
+            padding: 24px 32px;
+        }
+
+        #editor {
+            width: 50%;
+            height: 100%;
+            background: transparent;
+            color: var(--text-main);
+            border: none;
+            border-right: 1px solid var(--border-color);
+            resize: none;
+            outline: none;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 24px 32px;
+        }
+
+        #preview {
+            width: 50%;
+            line-height: 1.6;
+        }
+
+        /* Markdown Formatting Overrides */
+        #preview h1, #preview h2, #preview h3 { margin-bottom: 12px; color: #fff; }
+        #preview p { margin-bottom: 12px; }
+        #preview ul, #preview ol { margin-left: 20px; margin-bottom: 12px; }
+        #preview blockquote {
+            border-left: 3px solid var(--accent-purple);
+            padding-left: 12px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        #preview code {
+            background-color: #2d2d2d;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        .wikilink {
+            color: var(--accent-purple);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        /* Backlinks Section */
+        #backlinks-panel {
+            border-top: 1px solid var(--border-color);
+            padding: 12px 32px;
+            background-color: #1a1a1a;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        #backlinks-panel h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .backlink-item {
+            font-size: 13px;
+            color: var(--accent-purple);
+            cursor: pointer;
+            margin-bottom: 4px;
+        }
+
+        /* Graph View Overlay */
+        #graph-modal {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 15, 15, 0.95);
+            z-index: 100;
+            flex-direction: column;
+        }
+
+        #graph-modal-header {
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        #graph-canvas {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <button class="btn" id="open-vault-btn">📁 Open Vault Directory</button>
+            <button class="btn btn-secondary" id="new-note-btn" disabled>+ New Note</button>
+        </div>
+        <div id="file-list"></div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div id="workspace">
+        <div class="top-bar">
+            <span class="active-tab-title" id="current-filename">No file selected</span>
+            <div>
+                <button class="btn btn-secondary" id="toggle-graph-btn">🕸️ Graph View</button>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <textarea id="editor" placeholder="Select or create a note to start writing..." disabled></textarea>
+            <div id="preview" class="panel"></div>
+
+            <!-- Graph Overlay -->
+            <div id="graph-modal">
+                <div id="graph-modal-header">
+                    <h3>Interactive Graph View</h3>
+                    <button class="btn btn-secondary" id="close-graph-btn">Close</button>
+                </div>
+                <canvas id="graph-canvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Backlinks Footer -->
+        <div id="backlinks-panel">
+            <h4>Backlinks</h4>
+            <div id="backlinks-list"><span style="color: var(--text-muted); font-size: 12px;">No connections found</span></div>
+        </div>
+    </div>
+
+    <script>
+        // Global Application State
+        let dirHandle = null;
+        let filesMap = new Map(); // filename -> fileHandle
+        let notesData = new Map(); // filename -> content string
+        let activeFileName = null;
+
+        // UI Element References
+        const openVaultBtn = document.getElementById('open-vault-btn');
+        const newNoteBtn = document.getElementById('new-note-btn');
+        const fileListEl = document.getElementById('file-list');
+        const editorEl = document.getElementById('editor');
+        const previewEl = document.getElementById('preview');
+        const currentFilenameEl = document.getElementById('current-filename');
+        const backlinksListEl = document.getElementById('backlinks-list');
+        const toggleGraphBtn = document.getElementById('toggle-graph-btn');
+        const closeGraphBtn = document.getElementById('close-graph-btn');
+        const graphModal = document.getElementById('graph-modal');
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Configure Marked parser to handle [[WikiLinks]]
+        const wikilinkExtension = {
+            name: 'wikilink',
+            level: 'inline',
+            start(src) { return src.indexOf('[['); },
+            tokenizer(src) {
+                const rule = /^\[\[([^\]]+)\]\]/;
+                const match = rule.exec(src);
+                if (match) {
+                    return {
+                        type: 'wikilink',
+                        raw: match[0],
+                        target: match[1].trim()
+                    };
+                }
+            },
+            renderer(token) {
+                return `<span class="wikilink" onclick="navigateToNote('${token.target}')">${token.target}</span>`;
+            }
+        };
+        marked.use({ extensions: [wikilinkExtension] });
+
+        // 1. Local Directory Access (Vault Folder)
+        openVaultBtn.addEventListener('click', async () => {
+            try {
+                dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                await loadVault();
+                newNoteBtn.disabled = false;
+            } catch (err) {
+                console.error("Directory selection cancelled or failed:", err);
+            }
+        });
+
+        async function loadVault() {
+            filesMap.clear();
+            notesData.clear();
+            fileListEl.innerHTML = '';
+
+            for await (const entry of dirHandle.values()) {
+                if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+                    filesMap.set(entry.name, entry);
+                    const file = await entry.getFile();
+                    const text = await file.text();
+                    notesData.set(entry.name, text);
+                }
+            }
+            renderFileList();
+        }
+
+        function renderFileList() {
+            fileListEl.innerHTML = '';
+            filesMap.forEach((_, fileName) => {
+                const item = document.createElement('div');
+                item.className = `file-item ${fileName === activeFileName ? 'active' : ''}`;
+                item.textContent = fileName.replace('.md', '');
+                item.onclick = () => openNote(fileName);
+                fileListEl.appendChild(item);
+            });
+        }
+
+        // 2. Open & Read Note
+        async function openNote(fileName) {
+            activeFileName = fileName;
+            const content = notesData.get(fileName) || '';
+            
+            editorEl.disabled = false;
+            editorEl.value = content;
+            currentFilenameEl.textContent = fileName;
+
+            renderFileList();
+            updatePreviewAndBacklinks();
+        }
+
+        // 3. Create New Note
+        newNoteBtn.addEventListener('click', async () => {
+            const title = prompt("Enter new note title:");
+            if (!title) return;
+
+            const fileName = title.endsWith('.md') ? title : `${title}.md`;
+            try {
+                const newFileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                filesMap.set(fileName, newFileHandle);
+                notesData.set(fileName, `# ${title}\n\n`);
+                
+                // Write initial content
+                const writable = await newFileHandle.createWritable();
+                await writable.write(`# ${title}\n\n`);
+                await writable.close();
+
+                openNote(fileName);
+            } catch (err) {
+                alert("Failed to create file: " + err.message);
+            }
+        });
+
+        // 4. Live Editing & File Auto-saving
+        let saveTimeout;
+        editorEl.addEventListener('input', () => {
+            if (!activeFileName) return;
+
+            const updatedText = editorEl.value;
+            notesData.set(activeFileName, updatedText);
+
+            updatePreviewAndBacklinks();
+
+            // Debounce saving to local disk
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                const fileHandle = filesMap.get(activeFileName);
+                if (fileHandle) {
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(updatedText);
+                    await writable.close();
+                }
+            }, 500);
+        });
+
+        // Update Rendered Markdown and Backlinks View
+        function updatePreviewAndBacklinks() {
+            const content = editorEl.value;
+            previewEl.innerHTML = marked.parse(content);
+            renderBacklinks();
+        }
+
+        // 5. Backlinks Logic
+        function renderBacklinks() {
+            backlinksListEl.innerHTML = '';
+            if (!activeFileName) return;
+
+            const currentBaseName = activeFileName.replace('.md', '');
+            const linkingNotes = [];
+
+            notesData.forEach((content, fileName) => {
+                if (fileName === activeFileName) return;
+                
+                // Regex check for [[CurrentNoteTitle]]
+                const wikiRegex = new RegExp(`\\[\\[${currentBaseName}\\]\\]`, 'i');
+                if (wikiRegex.test(content)) {
+                    linkingNotes.push(fileName);
+                }
+            });
+
+            if (linkingNotes.length === 0) {
+                backlinksListEl.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No connections found</span>';
+                return;
+            }
+
+            linkingNotes.forEach(fileName => {
+                const item = document.createElement('div');
+                item.className = 'backlink-item';
+                item.textContent = `← ${fileName.replace('.md', '')}`;
+                item.onclick = () => openNote(fileName);
+                backlinksListEl.appendChild(item);
+            });
+        }
+
+        // Navigation via WikiLink click inside Preview
+        window.navigateToNote = function(targetName) {
+            const fileName = targetName.endsWith('.md') ? targetName : `${targetName}.md`;
+            if (filesMap.has(fileName)) {
+                openNote(fileName);
+            } else {
+                if (confirm(`Note "${targetName}" does not exist. Create it?`)) {
+                    createAndOpenNote(fileName);
+                }
+            }
+        };
+
+        async function createAndOpenNote(fileName) {
+            const newFileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+            filesMap.set(fileName, newFileHandle);
+            notesData.set(fileName, `# ${fileName.replace('.md', '')}\n\n`);
+            
+            const writable = await newFileHandle.createWritable();
+            await writable.write(`# ${fileName.replace('.md', '')}\n\n`);
+            await writable.close();
+
+            openNote(fileName);
+        }
+
+        // 6. Canvas Graph Visualization Engine
+        toggleGraphBtn.addEventListener('click', () => {
+            graphModal.style.display = 'flex';
+            drawGraph();
+        });
+
+        closeGraphBtn.addEventListener('click', () => {
+            graphModal.style.display = 'none';
+        });
+
+        function drawGraph() {
+            canvas.width = graphModal.clientWidth;
+            canvas.height = graphModal.clientHeight - 50;
+
+            const nodes = [];
+            const links = [];
+            const nodeMap = new Map();
+
+            // Populate nodes
+            let i = 0;
+            notesData.forEach((_, fileName) => {
+                const name = fileName.replace('.md', '');
+                const node = {
+                    id: name,
+                    x: Math.random() * (canvas.width - 200) + 100,
+                    y: Math.random() * (canvas.height - 200) + 100,
+                    radius: 6
+                };
+                nodes.push(node);
+                nodeMap.set(name, node);
+                i++;
+            });
+
+            // Populate edges/links
+            notesData.forEach((content, fileName) => {
+                const sourceName = fileName.replace('.md', '');
+                const sourceNode = nodeMap.get(sourceName);
+
+                const wikiRegex = /\[\[([^\]]+)\]\]/g;
+                let match;
+                while ((match = wikiRegex.exec(content)) !== null) {
+                    const targetName = match[1].trim();
+                    const targetNode = nodeMap.get(targetName);
+                    if (targetNode && sourceNode) {
+                        links.push({ source: sourceNode, target: targetNode });
+                    }
+                }
+            });
+
+            // Render on Canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Links
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1.5;
+            links.forEach(link => {
+                ctx.beginPath();
+                ctx.moveTo(link.source.x, link.source.y);
+                ctx.lineTo(link.target.x, link.target.y);
+                ctx.stroke();
+            });
+
+            // Draw Nodes
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                ctx.fillStyle = (node.id === activeFileName?.replace('.md', '')) ? '#7d5fff' : '#ffffff';
+                ctx.fill();
+
+                // Node Labels
+                ctx.fillStyle = '#aaa';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(node.id, node.x + 10, node.y + 4);
+            });
+        }
+    </script>
+</body>
+</html>

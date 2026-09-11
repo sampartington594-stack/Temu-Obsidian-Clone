@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian PKM Note Taker</title>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-titlebar: #0f0f11;
+            --bg-ribbon: #16161a;
+            --bg-sidebar: #1e1e24;
+            --bg-editor: #18181c;
+            --bg-card: #25252e;
+            --bg-hover: #2d2d38;
+            --bg-active: #343442;
+            --border-color: #2b2b36;
+            
+            --text-normal: #dcddde;
+            --text-muted: #8a8e9b;
+            --text-faint: #5a5e6b;
+            
+            --accent-purple: #7c3aed;
+            --accent-purple-light: #a78bfa;
+            --accent-purple-glow: rgba(124, 58, 237, 0.25);
+            --tag-bg: rgba(167, 139, 250, 0.12);
+            --pill-bg: #2a2238;
+            
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-ui);
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-titlebar);
+            color: var(--text-normal);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 13px;
+        }
+
+        /* Top Title Bar / Mac Window Header */
+        .window-header {
+            height: 38px;
+            background: var(--bg-titlebar);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            -webkit-app-region: drag;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mac-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .mac-close { background: #ff5f56; }
+        .mac-min { background: #ffbd2e; }
+        .mac-max { background: #27c93f; }
+
+        .window-title {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Main Layout */
+        .app-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Leftmost Navigation Ribbon */
+        .ribbon {
+            width: 44px;
+            background: var(--bg-ribbon);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            gap: 16px;
+            color: var(--text-muted);
+        }
+
+        .ribbon-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-size: 14px;
+        }
+
+        .ribbon-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        .ribbon-btn.active {
+            color: var(--accent-purple-light);
+            background: var(--accent-purple-glow);
+        }
+
+        /* Left Sidebar Pane (File Explorer & Tags) */
+        .sidebar {
+            width: 250px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 12px 14px 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .vault-name {
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 8px;
+            color: var(--text-muted);
+        }
+
+        .sidebar-actions i {
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .sidebar-actions i:hover {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        /* Search Trigger Input in Sidebar */
+        .search-container {
+            padding: 0 10px 10px 10px;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .search-input-wrapper i {
+            position: absolute;
+            left: 10px;
+            color: var(--text-faint);
+            font-size: 11px;
+        }
+
+        .search-trigger-input {
+            width: 100%;
+            background: var(--bg-ribbon);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 6px 8px 6px 28px;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-shortcut-badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-size: 10px;
+            padding: 1px 4px;
+            color: var(--text-faint);
+        }
+
+        /* File List Tree */
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 8px;
+        }
+
+        .tree-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            padding: 8px 8px 4px 8px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            transition: background 0.1s ease;
+        }
+
+        .file-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        .file-item.active {
+            background: var(--bg-active);
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-item i.pin-icon {
+            font-size: 10px;
+            color: #f59e0b;
+        }
+
+        /* Tags Drawer Bottom Left */
+        .tags-pane {
+            border-top: 1px solid var(--border-color);
+            padding: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+            background: var(--bg-ribbon);
+        }
+
+        .tag-pill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .tag-pill {
+            background: var(--tag-bg);
+            color: var(--accent-purple-light);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tag-pill:hover, .tag-pill.active {
+            background: var(--accent-purple);
+            color: #ffffff;
+        }
+
+        /* Main Workspace Split */
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-editor);
+            overflow: hidden;
+        }
+
+        /* Top Tabs Bar */
+        .tab-bar {
+            height: 36px;
+            background: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+            gap: 4px;
+        }
+
+        .tab {
+            height: 28px;
+            padding: 0 12px;
+            background: var(--bg-ribbon);
+            border-radius: 4px 4px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+        }
+
+        .tab.active {
+            background: var(--bg-editor);
+            color: var(--text-normal);
+            border-color: var(--border-color);
+        }
+
+        /* Split Workspace Content Area */
+        .workspace-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Main Editor / Note Panel */
+        .editor-pane {
+            flex: 1;
+            padding: 32px 48px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            user-select: text;
+            position: relative;
+        }
+
+        /* Obsidian Property Block styling */
+        .properties-block {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .properties-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .property-row {
+            display: grid;
+            grid-template-columns: 100px 1fr;
+            align-items: center;
+            gap: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .property-label {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .property-value {
+            color: var(--accent-purple-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .property-input {
+            background: transparent;
+            border: none;
+            color: var(--text-normal);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            outline: none;
+            width: 100%;
+        }
+
+        .property-input:focus {
+            background: var(--bg-ribbon);
+            border-radius: 3px;
+        }
+
+        /* Note Title Styling */
+        .note-title-input {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-normal);
+            background: transparent;
+            border: none;
+            outline: none;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .note-body-textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-normal);
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            font-family: var(--font-ui);
+            min-height: 250px;
+        }
+
+        /* Slash Menu */
+        .slash-menu {
+            position: absolute;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            width: 260px;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+        }
+
+        .slash-menu-header {
+            padding: 8px 12px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .slash-item {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-normal);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .slash-item:hover, .slash-item.selected {
+            background: var(--accent-purple);
+            color: #ffffff;
+        }
+
+        /* Graph Canvas Side Pane */
+        .graph-pane {
+            width: 45%;
+            background: #121215;
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .graph-header {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+            background: rgba(22, 22, 26, 0.8);
+            backdrop-filter: blur(4px);
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #graphCanvas {
+            width: 100%;
+            height: 100%;
+            background: #121215;
+        }
+
+        /* Right Side Backlinks Bar */
+        .right-sidebar {
+            width: 220px;
+            background: var(--bg-sidebar);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        .backlinks-header {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .backlink-card {
+            background: var(--bg-ribbon);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 11px;
+            margin-top: 6px;
+            cursor: pointer;
+        }
+
+        .backlink-card-title {
+            color: var(--accent-purple-light);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .backlink-card-snippet {
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+
+        /* NOTION / OBSIDIAN STYLE CENTERED SEARCH MODAL */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            display: none;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 80px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .search-modal {
+            width: 720px;
+            max-width: 90vw;
+            max-height: 75vh;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-search-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-search-header i {
+            color: var(--text-faint);
+            font-size: 16px;
+        }
+
+        .modal-search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-normal);
+            font-size: 16px;
+        }
+
+        .modal-body {
+            display: flex;
+            height: 420px;
+            overflow: hidden;
+        }
+
+        .modal-results-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .modal-result-item {
+            padding: 10px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            color: var(--text-muted);
+        }
+
+        .modal-result-item:hover, .modal-result-item.selected {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        .modal-result-item.selected {
+            border-left: 3px solid var(--accent-purple);
+        }
+
+        .modal-preview-pane {
+            width: 320px;
+            background: var(--bg-editor);
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .modal-preview-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-normal);
+        }
+
+        .modal-preview-snippet {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .modal-footer {
+            padding: 10px 16px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-ribbon);
+            font-size: 11px;
+            color: var(--text-faint);
+            display: flex;
+            gap: 16px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .graph-pane { display: none; }
+            .right-sidebar { display: none; }
+            .modal-preview-pane { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Window Top Header Bar -->
+    <header class="window-header">
+        <div class="window-controls">
+            <div class="mac-btn mac-close"></div>
+            <div class="mac-btn mac-min"></div>
+            <div class="mac-btn mac-max"></div>
+        </div>
+        <div class="window-title" id="windowTitle">
+            <i class="fa-solid fa-vault"></i> Obsidian Vault - NoteTaker PKM
+        </div>
+        <div></div>
+    </header>
+
+    <div class="app-container">
+        <!-- Far Left Navigation Ribbon -->
+        <nav class="ribbon">
+            <div class="ribbon-btn active" title="Files Explorer"><i class="fa-regular fa-folder-open"></i></div>
+            <div class="ribbon-btn" title="Quick Search (Cmd/Ctrl + K)" onclick="openSearchModal()"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="ribbon-btn" title="Graph View" onclick="toggleGraphView()"><i class="fa-solid fa-circle-nodes"></i></div>
+            <div class="ribbon-btn" title="New Note" onclick="createNewNote()"><i class="fa-solid fa-plus"></i></div>
+            <div style="flex:1"></div>
+            <div class="ribbon-btn" title="Settings"><i class="fa-solid fa-gear"></i></div>
+        </nav>
+
+        <!-- Sidebar (Notes Tree + Tags) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="vault-name">Personal Vault</span>
+                <div class="sidebar-actions">
+                    <i class="fa-solid fa-folder-plus" title="Import Folder" onclick="document.getElementById('fileImporter').click()"></i>
+                    <i class="fa-solid fa-file-circle-plus" title="New Note" onclick="createNewNote()"></i>
+                </div>
+            </div>
+
+            <!-- Hidden Input Triggering Full Directory Import -->
+            <input type="file" id="fileImporter" style="display: none;" webkitdirectory directory multiple onchange="importFolder(event)">
+
+            <!-- Search Trigger Bar (Opens Centered Spotlight Modal) -->
+            <div class="search-container">
+                <div class="search-trigger-input" onclick="openSearchModal()">
+                    <span><i class="fa-solid fa-magnifying-glass" style="margin-right:6px;"></i> Search notes...</span>
+                    <span class="search-shortcut-badge">⌘K</span>
+                </div>
+            </div>
+
+            <!-- Notes List -->
+            <div class="file-tree" id="fileTree">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Tags Filter Drawer -->
+            <div class="tags-pane">
+                <div class="tree-section-label">Tags</div>
+                <div class="tag-pill-list" id="tagPillList">
+                    <!-- Dynamic Tags -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Editor -->
+        <main class="workspace">
+            <!-- Tabs Bar -->
+            <div class="tab-bar">
+                <div class="tab active" id="activeTabTitle">
+                    <i class="fa-regular fa-file-lines"></i>
+                    <span id="tabLabel">Untitled</span>
+                </div>
+            </div>
+
+            <!-- Active Workspace Area -->
+            <div class="workspace-content">
+                <!-- Note Editor Pane -->
+                <div class="editor-pane" id="editorPane">
+                    <!-- Note Title Input -->
+                    <input type="text" id="noteTitle" class="note-title-input" placeholder="Note Title..." oninput="updateCurrentNote()">
+
+                    <!-- Obsidian YAML Metadata Properties Block -->
+                    <div class="properties-block">
+                        <div class="properties-title"><i class="fa-solid fa-sliders"></i> Properties</div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-regular fa-clock"></i> created</span>
+                            <span class="property-value" id="propCreated">--</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-arrow-rotate-right"></i> updated</span>
+                            <span class="property-value" id="propUpdated">--</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-tag"></i> tags</span>
+                            <input type="text" id="propTags" class="property-input" placeholder="comma separated tags..." onchange="updateCurrentNote()">
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-thumbtack"></i> pinned</span>
+                            <input type="checkbox" id="propPinned" onchange="togglePinCurrentNote()">
+                        </div>
+                    </div>
+
+                    <!-- Note Content Body -->
+                    <textarea id="noteContent" class="note-body-textarea" placeholder="Start typing... Press '/' to link a file!" oninput="handleEditorInput(event)" onkeydown="handleEditorKeyDown(event)"></textarea>
+
+                    <!-- Slash Menu -->
+                    <div id="slashMenu" class="slash-menu">
+                        <div class="slash-menu-header"><i class="fa-solid fa-link"></i> Link a Page</div>
+                        <div id="slashList"></div>
+                    </div>
+                </div>
+
+                <!-- Interactive Canvas Graph Pane Side-by-Side -->
+                <div class="graph-pane" id="graphPane">
+                    <div class="graph-header">
+                        <i class="fa-solid fa-circle-nodes"></i> Interactive Graph View
+                    </div>
+                    <canvas id="graphCanvas"></canvas>
+                </div>
+
+                <!-- Right Backlinks Sidebar Pane -->
+                <div class="right-sidebar">
+                    <div class="backlinks-header">
+                        <span><i class="fa-solid fa-link"></i> Linked Mentions</span>
+                    </div>
+                    <div id="backlinksList">
+                        <!-- Dynamic Backlinks -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- CENTERED NOTION-STYLE SEARCH SPOTLIGHT MODAL -->
+    <div class="modal-overlay" id="searchModalOverlay" onclick="closeSearchModal(event)">
+        <div class="search-modal" onclick="event.stopPropagation()">
+            <div class="modal-search-header">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="modalSearchInput" class="modal-search-input" placeholder="Search or ask a question in space..." oninput="handleModalSearch()" onkeydown="handleModalKeyDown(event)">
+            </div>
+            <div class="modal-body">
+                <div class="modal-results-list" id="modalResultsList">
+                    <!-- Dynamic search items -->
+                </div>
+                <div class="modal-preview-pane">
+                    <div class="modal-preview-title" id="modalPreviewTitle">Select a note</div>
+                    <div class="modal-preview-snippet" id="modalPreviewSnippet">Preview will appear here...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span><b style="color:var(--text-normal);">↑ ↓</b> Navigate</span>
+                <span><b style="color:var(--text-normal);">↵</b> Select</span>
+                <span><b style="color:var(--text-normal);">ESC</b> Close</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Engine -->
+    <script>
+        const defaultNotes = [
+            {
+                id: 1,
+                title: "richard hendrix",
+                content: "CEO of Pied Piper. Working on middle-out compression algorithm.\n\nAssociated with [[030 Interests MOC]] and [[010 Mindsets MOC]].\n\nKey discussion notes:\n- Compression metrics outperform competition.\n- Decentralized web infrastructure planned.",
+                tags: "people, pied_piper",
+                pinned: true,
+                created: "10/30/2025, 22:39",
+                updated: "10/30/2025, 22:40"
+            },
+            {
+                id: 2,
+                title: "Habits MOC - Unifying Phase",
+                content: "Enjoy and Use - Enjoy the spatial constellation created.\n\nUnderstanding Habits:\n- Habit formation provides an evolutionary advantage\n- Small Wins foster a Sense of Control\n- An asymptotic curve models development",
+                tags: "MOC, habits, PKM",
+                pinned: true,
+                created: "10/28/2025, 14:10",
+                updated: "10/29/2025, 18:22"
+            },
+            {
+                id: 3,
+                title: "010 Mindsets MOC",
+                content: "Central index for cognitive frameworks, mental models, and personal productivity guidelines.",
+                tags: "MOC, mindsets",
+                pinned: false,
+                created: "10/25/2025, 09:15",
+                updated: "10/25/2025, 09:15"
+            }
+        ];
+
+        let notes = JSON.parse(localStorage.getItem('obsidian_pkm_notes')) || defaultNotes;
+        let activeNoteId = notes[0] ? notes[0].id : null;
+        let activeTagFilter = null;
+        let isGraphVisible = true;
+
+        // Modal Search State
+        let searchResults = [];
+        let modalSelectedIndex = 0;
+
+        // Slash Menu Variables
+        let slashActive = false;
+        let slashStartPos = -1;
+        let slashSelectedIndex = 0;
+        let filteredSlashNotes = [];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderSidebar();
+            renderTags();
+            if (activeNoteId) loadNote(activeNoteId);
+            initGraph();
+            window.addEventListener('resize', drawGraph);
+
+            // Hide slash menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#slashMenu') && e.target.id !== 'noteContent') {
+                    hideSlashMenu();
+                }
+            });
+
+            // Global Keyboard Shortcut for Search (Cmd + K / Ctrl + K)
+            document.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    openSearchModal();
+                }
+            });
+        });
+
+        function saveToStorage() {
+            localStorage.setItem('obsidian_pkm_notes', JSON.stringify(notes));
+        }
+
+        function createNewNote() {
+            const now = new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
+            const newNote = {
+                id: Date.now(),
+                title: "Untitled Note",
+                content: "",
+                tags: "new",
+                pinned: false,
+                created: now,
+                updated: now
+            };
+            notes.unshift(newNote);
+            saveToStorage();
+            renderSidebar();
+            renderTags();
+            loadNote(newNote.id);
+        }
+
+        async function importFolder(event) {
+            const files = Array.from(event.target.files);
+            if (!files.length) return;
+
+            const textExtensions = ['txt', 'md', 'json', 'csv', 'js', 'html', 'css', 'py'];
+            
+            const validFiles = files.filter(file => {
+                if (file.name.startsWith('.')) return false;
+                const ext = file.name.split('.').pop().toLowerCase();
+                return textExtensions.includes(ext) || file.type.startsWith('text/');
+            });
+
+            if (validFiles.length === 0) {
+                alert('No valid text or markdown files found in the selected directory.');
+                return;
+            }
+
+            const now = new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
+
+            const readPromises = validFiles.map((file, idx) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+                        resolve({
+                            id: Date.now() + idx + Math.random(),
+                            title: fileNameWithoutExt,
+                            content: e.target.result,
+                            tags: "imported",
+                            pinned: false,
+                            created: now,
+                            updated: now
+                        });
+                    };
+                    reader.onerror = () => resolve(null);
+                    reader.readAsText(file);
+                });
+            });
+
+            const importedNotes = (await Promise.all(readPromises)).filter(Boolean);
+
+            if (importedNotes.length > 0) {
+                notes.unshift(...importedNotes);
+                saveToStorage();
+                renderSidebar();
+                renderTags();
+                loadNote(importedNotes[0].id);
+            }
+
+            event.target.value = '';
+        }
+
+        /* CENTERED NOTION SEARCH MODAL LOGIC */
+        function openSearchModal() {
+            const overlay = document.getElementById('searchModalOverlay');
+            const input = document.getElementById('modalSearchInput');
+            overlay.classList.add('active');
+            input.value = '';
+            input.focus();
+            handleModalSearch();
+        }
+
+        function closeSearchModal(e) {
+            if (e && e.target !== document.getElementById('searchModalOverlay')) return;
+            document.getElementById('searchModalOverlay').classList.remove('active');
+        }
+
+        function handleModalSearch() {
+            const query = document.getElementById('modalSearchInput').value.toLowerCase();
+            searchResults = notes.filter(n => 
+                n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query)
+            );
+
+            modalSelectedIndex = 0;
+            renderModalResults();
+        }
+
+        function renderModalResults() {
+            const list = document.getElementById('modalResultsList');
+            list.innerHTML = '';
+
+            if (searchResults.length === 0) {
+                list.innerHTML = `<div style="padding:16px; color:var(--text-faint); text-align:center;">No notes found</div>`;
+                document.getElementById('modalPreviewTitle').innerText = '';
+                document.getElementById('modalPreviewSnippet').innerText = 'No preview available';
+                return;
+            }
+
+            searchResults.forEach((note, idx) => {
+                const item = document.createElement('div');
+                item.className = `modal-result-item ${idx === modalSelectedIndex ? 'selected' : ''}`;
+                item.onclick = () => selectModalNote(note.id);
+                item.onmouseenter = () => {
+                    modalSelectedIndex = idx;
+                    updateModalSelection();
+                };
+
+                item.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="fa-regular fa-file-lines"></i>
+                        <span style="font-weight:500;">${escapeHtml(note.title)}</span>
+                    </div>
+                    <span style="font-size:10px; color:var(--text-faint);">${note.updated || ''}</span>
+                `;
+                list.appendChild(item);
+            });
+
+            updateModalPreview();
+        }
+
+        function updateModalSelection() {
+            const items = document.querySelectorAll('.modal-result-item');
+            items.forEach((item, idx) => {
+                if (idx === modalSelectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            updateModalPreview();
+        }
+
+        function updateModalPreview() {
+            const selectedNote = searchResults[modalSelectedIndex];
+            if (selectedNote) {
+                document.getElementById('modalPreviewTitle').innerText = selectedNote.title || 'Untitled';
+                document.getElementById('modalPreviewSnippet').innerText = selectedNote.content || 'Empty note...';
+            }
+        }
+
+        function selectModalNote(id) {
+            document.getElementById('searchModalOverlay').classList.remove('active');
+            loadNote(id);
+        }
+
+        function handleModalKeyDown(e) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (searchResults.length > 0) {
+                    modalSelectedIndex = (modalSelectedIndex + 1) % searchResults.length;
+                    updateModalSelection();
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (searchResults.length > 0) {
+                    modalSelectedIndex = (modalSelectedIndex - 1 + searchResults.length) % searchResults.length;
+                    updateModalSelection();
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (searchResults[modalSelectedIndex]) {
+                    selectModalNote(searchResults[modalSelectedIndex].id);
+                }
+            } else if (e.key === 'Escape') {
+                document.getElementById('searchModalOverlay').classList.remove('active');
+            }
+        }
+
+        function loadNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+
+            activeNoteId = id;
+            document.getElementById('noteTitle').value = note.title;
+            document.getElementById('noteContent').value = note.content;
+            document.getElementById('propCreated').innerText = note.created;
+            document.getElementById('propUpdated').innerText = note.updated;
+            document.getElementById('propTags').value = note.tags || '';
+            document.getElementById('propPinned').checked = !!note.pinned;
+
+            document.getElementById('tabLabel').innerText = note.title || 'Untitled';
+
+            hideSlashMenu();
+            renderSidebar();
+            renderBacklinks();
+            drawGraph();
+        }
+
+        function updateCurrentNote() {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+
+            note.title = document.getElementById('noteTitle').value;
+            note.content = document.getElementById('noteContent').value;
+            note.tags = document.getElementById('propTags').value;
+            note.updated = new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
+
+            document.getElementById('propUpdated').innerText = note.updated;
+            document.getElementById('tabLabel').innerText = note.title || 'Untitled';
+
+            saveToStorage();
+            renderSidebar();
+            renderTags();
+            renderBacklinks();
+            drawGraph();
+        }
+
+        function togglePinCurrentNote() {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            note.pinned = document.getElementById('propPinned').checked;
+            saveToStorage();
+            renderSidebar();
+        }
+
+        function deleteNote(id, event) {
+            event.stopPropagation();
+            if (notes.length <= 1) {
+                alert("Cannot delete the last remaining note.");
+                return;
+            }
+            notes = notes.filter(n => n.id !== id);
+            saveToStorage();
+
+            if (activeNoteId === id) {
+                activeNoteId = notes[0].id;
+            }
+
+            renderSidebar();
+            renderTags();
+            loadNote(activeNoteId);
+        }
+
+        /* Notion-Style Slash (/) Linking Menu Logic */
+        function handleEditorInput(e) {
+            updateCurrentNote();
+
+            const textarea = e.target;
+            const pos = textarea.selectionStart;
+            const val = textarea.value;
+
+            const lastChar = val.slice(pos - 1, pos);
+            if (lastChar === '/') {
+                slashActive = true;
+                slashStartPos = pos - 1;
+                showSlashMenu();
+            }
+
+            if (slashActive) {
+                const query = val.substring(slashStartPos + 1, pos).toLowerCase();
+                if (query.includes(' ') || pos < slashStartPos) {
+                    hideSlashMenu();
+                } else {
+                    renderSlashList(query);
+                }
+            }
+        }
+
+        function handleEditorKeyDown(e) {
+            if (!slashActive) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                slashSelectedIndex = (slashSelectedIndex + 1) % filteredSlashNotes.length;
+                updateSlashSelection();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                slashSelectedIndex = (slashSelectedIndex - 1 + filteredSlashNotes.length) % filteredSlashNotes.length;
+                updateSlashSelection();
+            } else if (e.key === 'Enter') {
+                if (filteredSlashNotes.length > 0) {
+                    e.preventDefault();
+                    insertPageLink(filteredSlashNotes[slashSelectedIndex].title);
+                }
+            } else if (e.key === 'Escape') {
+                hideSlashMenu();
+            }
+        }
+
+        function showSlashMenu() {
+            const menu = document.getElementById('slashMenu');
+            menu.style.display = 'block';
+            menu.style.top = '180px';
+            menu.style.left = '48px';
+            slashSelectedIndex = 0;
+            renderSlashList('');
+        }
+
+        function hideSlashMenu() {
+            slashActive = false;
+            slashStartPos = -1;
+            document.getElementById('slashMenu').style.display = 'none';
+        }
+
+        function renderSlashList(query) {
+            const list = document.getElementById('slashList');
+            list.innerHTML = '';
+
+            filteredSlashNotes = notes.filter(n => 
+                n.id !== activeNoteId && n.title.toLowerCase().includes(query)
+            );
+
+            if (filteredSlashNotes.length === 0) {
+                list.innerHTML = `<div style="padding:8px 12px; color:var(--text-faint);">No matching files</div>`;
+                return;
+            }
+
+            filteredSlashNotes.forEach((note, index) => {
+                const item = document.createElement('div');
+                item.className = `slash-item ${index === slashSelectedIndex ? 'selected' : ''}`;
+                item.innerHTML = `<i class="fa-regular fa-file-lines"></i> <span>${escapeHtml(note.title)}</span>`;
+                item.onmousedown = (e) => {
+                    e.preventDefault();
+                    insertPageLink(note.title);
+                };
+                list.appendChild(item);
+            });
+        }
+
+        function updateSlashSelection() {
+            const items = document.querySelectorAll('.slash-item');
+            items.forEach((item, idx) => {
+                if (idx === slashSelectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        function insertPageLink(targetTitle) {
+            const textarea = document.getElementById('noteContent');
+            const pos = textarea.selectionStart;
+            const val = textarea.value;
+
+            const before = val.substring(0, slashStartPos);
+            const after = val.substring(pos);
+            const linkText = `[[${targetTitle}]]`;
+
+            textarea.value = before + linkText + after;
+            textarea.selectionStart = textarea.selectionEnd = slashStartPos + linkText.length;
+
+            hideSlashMenu();
+            updateCurrentNote();
+            textarea.focus();
+        }
+
+        /* Sidebar rendering */
+        function renderSidebar() {
+            const tree = document.getElementById('fileTree');
+            tree.innerHTML = '';
+
+            let filtered = notes.filter(n => {
+                return activeTagFilter ? n.tags.split(',').map(t => t.trim()).includes(activeTagFilter) : true;
+            });
+
+            filtered.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+            if (filtered.length === 0) {
+                tree.innerHTML = `<div style="padding:12px; color:var(--text-faint); text-align:center;">No files found</div>`;
+                return;
+            }
+
+            filtered.forEach(note => {
+                const item = document.createElement('div');
+                item.className = `file-item ${note.id === activeNoteId ? 'active' : ''}`;
+                item.onclick = () => loadNote(note.id);
+
+                item.innerHTML = `
+                    <div class="file-info">
+                        <i class="fa-regular fa-file-lines"></i>
+                        <span>${escapeHtml(note.title || 'Untitled')}</span>
+                    </div>
+                    <div>
+                        ${note.pinned ? '<i class="fa-solid fa-thumbtack pin-icon"></i>' : ''}
+                        <i class="fa-solid fa-xmark" style="font-size:11px; margin-left:6px; opacity:0.5;" title="Delete" onclick="deleteNote(${note.id}, event)"></i>
+                    </div>
+                `;
+                tree.appendChild(item);
+            });
+        }
+
+        /* Tags Drawer */
+        function renderTags() {
+            const list = document.getElementById('tagPillList');
+            list.innerHTML = '';
+
+            const tagMap = {};
+            notes.forEach(n => {
+                if (n.tags) {
+                    n.tags.split(',').forEach(t => {
+                        const clean = t.trim();
+                        if (clean) tagMap[clean] = (tagMap[clean] || 0) + 1;
+                    });
+                }
+            });
+
+            Object.keys(tagMap).forEach(tag => {
+                const pill = document.createElement('div');
+                pill.className = `tag-pill ${activeTagFilter === tag ? 'active' : ''}`;
+                pill.innerHTML = `#${tag} <span style="opacity:0.6; font-size:9px;">${tagMap[tag]}</span>`;
+                pill.onclick = () => {
+                    activeTagFilter = activeTagFilter === tag ? null : tag;
+                    renderTags();
+                    renderSidebar();
+                };
+                list.appendChild(pill);
+            });
+        }
+
+        /* Backlinks Panel */
+        function renderBacklinks() {
+            const container = document.getElementById('backlinksList');
+            container.innerHTML = '';
+
+            const currentNote = notes.find(n => n.id === activeNoteId);
+            if (!currentNote) return;
+
+            const targetWiki = `[[${currentNote.title.toLowerCase()}]]`;
+            const mentions = notes.filter(n => n.id !== currentNote.id && n.content.toLowerCase().includes(targetWiki));
+
+            if (mentions.length === 0) {
+                container.innerHTML = `<div style="font-size:11px; color:var(--text-faint);">No linked mentions</div>`;
+                return;
+            }
+
+            mentions.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'backlink-card';
+                card.onclick = () => loadNote(m.id);
+                card.innerHTML = `
+                    <div class="backlink-card-title">${escapeHtml(m.title)}</div>
+                    <div class="backlink-card-snippet">...mentions <span class="wikilink">[[${escapeHtml(currentNote.title)}]]</span>...</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        /* Interactive Canvas Graph */
+        let canvas, ctx;
+        function initGraph() {
+            canvas = document.getElementById('graphCanvas');
+            ctx = canvas.getContext('2d');
+            drawGraph();
+        }
+
+        function drawGraph() {
+            if (!canvas || !canvas.parentElement) return;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (notes.length === 0) return;
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(canvas.width, canvas.height) * 0.32;
+
+            const nodePositions = {};
+            notes.forEach((note, index) => {
+                const angle = (index / notes.length) * Math.PI * 2;
+                nodePositions[note.id] = {
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle),
+                    title: note.title,
+                    isActive: note.id === activeNoteId
+                };
+            });
+
+            // Draw WikiLink Connections
+            ctx.strokeStyle = "rgba(124, 58, 237, 0.3)";
+            ctx.lineWidth = 1.5;
+
+            notes.forEach(note => {
+                notes.forEach(target => {
+                    if (note.id !== target.id && note.content.toLowerCase().includes(`[[${target.title.toLowerCase()}]]`)) {
+                        const start = nodePositions[note.id];
+                        const end = nodePositions[target.id];
+                        if (start && end) {
+                            ctx.beginPath();
+                            ctx.moveTo(start.x, start.y);
+                            ctx.lineTo(end.x, end.y);
+                            ctx.stroke();
+                        }
+                    }
+                });
+            });
+
+            // Draw Nodes
+            Object.keys(nodePositions).forEach(id => {
+                const node = nodePositions[id];
+
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.isActive ? 8 : 5, 0, Math.PI * 2);
+                ctx.fillStyle = node.isActive ? "#a78bfa" : "#7c3aed";
+                ctx.fill();
+
+                if (node.isActive) {
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = node.isActive ? "#ffffff" : "#8a8e9b";
+                ctx.font = "10px sans-serif";
+                ctx.fillText(node.title, node.x + 12, node.y + 3);
+            });
+        }
+
+        function toggleGraphView() {
+            const pane = document.getElementById('graphPane');
+            isGraphVisible = !isGraphVisible;
+            pane.style.display = isGraphVisible ? 'flex' : 'none';
+            if (isGraphVisible) drawGraph();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <button class="new-chat-btn" id="newChatBtn">
+        <span class="material-symbols-outlined">add</span>
+        <span>New Chat</span>
+      </button>
+      <div class="chat-history">
+        <div class="history-title">Recent Chats</div>
+        <ul id="historyList">
+          <li class="active"><span class="material-symbols-outlined">chat_bubble</span> Project Planning</li>
+          <li><span class="material-symbols-outlined">chat_bubble</span> Code Review</li>
+          <li><span class="material-symbols-outlined">chat_bubble</span> Creative Ideas</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Chat Window -->
+    <main class="chat-area">
+      <!-- Header -->
+      <header class="chat-header">
+        <h2>AI Assistant</h2>
+      </header>
+
+      <!-- Message History Container -->
+      <div class="messages-container" id="messagesContainer">
+        <div class="message ai-message">
+          <div class="avatar">AI</div>
+          <div class="message-content">
+            Hello! How can I assist you today?
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="input-container">
+        <form id="chatForm">
+          <textarea id="userInput" placeholder="Ask anything..." rows="1" required></textarea>
+          <button type="submit" id="sendBtn">
+            <span class="material-symbols-outlined">send</span>
+          </button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+

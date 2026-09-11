@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Obsidian - Personal Knowledge Base</title>
+  <style>
+    :root {
+      --bg-dark: #1e1e24;
+      --bg-sidebar: #18181c;
+      --bg-editor: #23232a;
+      --border-color: #33333d;
+      --accent-color: #7b5ea7;
+      --text-main: #dcddde;
+      --text-muted: #8e8e93;
+      --link-color: #8a73b9;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      display: flex;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 280px;
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      gap: 12px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+
+    .sidebar-header h2 { font-size: 1.1rem; color: #fff; }
+
+    .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    button {
+      background-color: var(--accent-color);
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.85rem;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary { background-color: #3a3a44; }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      background-color: #111115;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 0.9rem;
+    }
+
+    #file-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .file-item {
+      padding: 8px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .file-item:hover, .file-item.active {
+      background-color: #2a2a35;
+      color: var(--text-main);
+    }
+
+    /* Main Editor Workspace */
+    #workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    #editor-bar {
+      display: flex;
+      align-items: center;
+      padding: 15px 25px 5px 25px;
+      gap: 15px;
+    }
+
+    #note-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      flex: 1;
+    }
+
+    .view-toggle {
+      display: flex;
+      background: #111;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .view-toggle button {
+      background: transparent;
+      border-radius: 0;
+      color: var(--text-muted);
+    }
+    .view-toggle button.active {
+      background: var(--accent-color);
+      color: #fff;
+    }
+
+    #content-container {
+      flex: 1;
+      display: flex;
+      padding: 10px 25px;
+      gap: 20px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    textarea#editor {
+      flex: 1;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 1rem;
+      line-height: 1.6;
+      resize: none;
+    }
+
+    #preview {
+      flex: 1;
+      height: 100%;
+      overflow-y: auto;
+      line-height: 1.6;
+      display: none;
+    }
+
+    #preview h1, #preview h2, #preview h3 { margin: 15px 0 10px 0; color: #fff; }
+    #preview p { margin-bottom: 10px; }
+    #preview ul { margin-left: 20px; margin-bottom: 10px; }
+    #preview blockquote { border-left: 3px solid var(--accent-color); padding-left: 10px; color: var(--text-muted); }
+    #preview code { background: #111; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    .wiki-link { color: var(--link-color); text-decoration: underline; cursor: pointer; font-weight: bold; }
+    .tag { background: #3a2d54; color: #b794f4; padding: 2px 6px; border-radius: 3px; font-size: 0.85rem; }
+
+    /* Backlinks & Graph Footer */
+    #footer-pane {
+      height: 180px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-sidebar);
+      display: flex;
+      padding: 10px 25px;
+      gap: 20px;
+    }
+
+    .pane-section { flex: 1; overflow-y: auto; }
+    .pane-section h4 { font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+
+    #graph-canvas {
+      width: 100%;
+      height: 130px;
+      background: #111115;
+      border-radius: 4px;
+    }
+
+    /* Auto-suggest dropdown */
+    #suggest-popup {
+      position: absolute;
+      background: #282830;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      display: none;
+      max-height: 150px;
+      overflow-y: auto;
+      width: 200px;
+      z-index: 100;
+    }
+    .suggest-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .suggest-item:hover { background: var(--accent-color); color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <h2>Vault</h2>
+      <button class="secondary" id="btn-open-folder">Open Folder</button>
+    </div>
+
+    <div class="btn-group">
+      <button onclick="createNewNote()">+ New Note</button>
+      <button class="secondary" onclick="createDailyNote()">📅 Daily</button>
+    </div>
+
+    <input type="text" id="search-bar" placeholder="Search notes or #tags..." oninput="filterNotes()">
+
+    <div id="file-list"></div>
+  </div>
+
+  <!-- Workspace -->
+  <div id="workspace">
+    <div id="editor-bar">
+      <input type="text" id="note-title" placeholder="Untitled Note" oninput="renameCurrentNote()">
+      <div class="view-toggle">
+        <button id="btn-edit" class="active" onclick="switchMode('edit')">Edit</button>
+        <button id="btn-preview" onclick="switchMode('preview')">Preview</button>
+      </div>
+      <button onclick="saveCurrentNote()">Save</button>
+    </div>
+
+    <div id="content-container">
+      <textarea id="editor" placeholder="Write markdown or [[Wiki Links]] here..." oninput="handleEditorInput(event)"></textarea>
+      <div id="preview"></div>
+      <div id="suggest-popup"></div>
+    </div>
+
+    <!-- Backlinks & Interactive Graph -->
+    <div id="footer-pane">
+      <div class="pane-section">
+        <h4>Backlinks (Linked Mentions)</h4>
+        <div id="backlinks-list">None</div>
+      </div>
+      <div class="pane-section">
+        <h4>Interactive Graph View</h4>
+        <canvas id="graph-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Application State ---
+    let vault = {}; // Key: Note Title (string), Value: Content (string)
+    let currentNoteTitle = null;
+    let dirHandle = null; // FileSystemDirectoryHandle for modern browsers
+    let activeMode = 'edit';
+
+    // --- DOM Elements ---
+    const fileListEl = document.getElementById('file-list');
+    const editorEl = document.getElementById('editor');
+    const previewEl = document.getElementById('preview');
+    const titleEl = document.getElementById('note-title');
+    const backlinksEl = document.getElementById('backlinks-list');
+    const suggestPopup = document.getElementById('suggest-popup');
+    const canvas = document.getElementById('graph-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- Core Vault Operations ---
+
+    // Initialize File System Access API if available
+    document.getElementById('btn-open-folder').addEventListener('click', async () => {
+      if ('showDirectoryPicker' in window) {
+        try {
+          dirHandle = await window.showDirectoryPicker();
+          vault = {};
+          for await (const entry of dirHandle.values()) {
+            if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+              const file = await entry.getFile();
+              const content = await file.text();
+              const title = entry.name.replace(/\.md$/, '');
+              vault[title] = content;
+            }
+          }
+          renderFileList();
+          if (Object.keys(vault).length > 0) openNote(Object.keys(vault)[0]);
+        } catch (err) {
+          console.warn('Folder access canceled or error:', err);
+        }
+      } else {
+        alert('Local folder access is not fully supported in this browser. Falling back to in-memory/session storage mode.');
+      }
+    });
+
+    function createNewNote(title = null, content = '') {
+      let name = title || prompt('Enter note name:');
+      if (!name) return;
+      name = name.trim();
+      if (!vault[name]) {
+        vault[name] = content || `# ${name}\n\nStart typing here...`;
+        saveToDisk(name, vault[name]);
+      }
+      renderFileList();
+      openNote(name);
+    }
+
+    function createDailyNote() {
+      const today = new Date().toISOString().split('T')[0];
+      if (!vault[today]) {
+        createNewNote(today, `# ${today}\n\n## Tasks\n- [ ] \n\n## Thoughts\n`);
+      } else {
+        openNote(today);
+      }
+    }
+
+    function openNote(title) {
+      currentNoteTitle = title;
+      titleEl.value = title;
+      editorEl.value = vault[title] || '';
+      renderFileList();
+      updateBacklinks();
+      renderPreview();
+      drawGraph();
+    }
+
+    function saveCurrentNote() {
+      if (!currentNoteTitle) return;
+      vault[currentNoteTitle] = editorEl.value;
+      saveToDisk(currentNoteTitle, editorEl.value);
+      updateBacklinks();
+      renderPreview();
+      drawGraph();
+    }
+
+    async function saveToDisk(title, content) {
+      if (dirHandle) {
+        try {
+          const fileHandle = await dirHandle.getFileHandle(`${title}.md`, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(content);
+          await writable.close();
+        } catch (e) {
+          console.error("Error writing file to disk:", e);
+        }
+      }
+    }
+
+    function renameCurrentNote() {
+      const newTitle = titleEl.value.trim();
+      if (!newTitle || newTitle === currentNoteTitle) return;
+      
+      vault[newTitle] = editorEl.value;
+      delete vault[currentNoteTitle];
+      currentNoteTitle = newTitle;
+      renderFileList();
+      drawGraph();
+    }
+
+    // --- Search & Filtering ---
+    function filterNotes() {
+      const query = document.getElementById('search-bar').value.toLowerCase();
+      renderFileList(query);
+    }
+
+    function renderFileList(query = '') {
+      fileListEl.innerHTML = '';
+      Object.keys(vault).forEach(title => {
+        const content = vault[title].toLowerCase();
+        if (title.toLowerCase().includes(query) || content.includes(query)) {
+          const item = document.createElement('div');
+          item.className = `file-item ${title === currentNoteTitle ? 'active' : ''}`;
+          item.textContent = title;
+          item.onclick = () => openNote(title);
+          fileListEl.appendChild(item);
+        }
+      });
+    }
+
+    // --- Markdown Parser & Wiki Link Renderer ---
+    function parseMarkdown(text) {
+      if (!text) return '';
+      let html = text
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
+        .replace(/\*(.*)\*/gim, '<i>$1</i>')
+        .replace(/!\[(.*?)\]\((.*?)\)/gim, "<img alt='$1' src='$2' />")
+        .replace(/\[(.*?)\]\((.*?)\)/gim, "<a href='$2'>$1</a>")
+        .replace(/^> (.*$)/gim, 'blockquote>$1</blockquote>')
+        .replace(/`- \[ \] (.*$)/gim, '<li><input type="checkbox"> $1</li>')
+        .replace(/`- \[x\] (.*$)/gim, '<li><input type="checkbox" checked> $1</li>')
+        .replace(/`- (.*$)/gim, '<li>$1</li>')
+        .replace(/`([^`]+)`/gim, '<code>$1</code>')
+        .replace(/(#[\w\-]+)/gim, '<span class="tag">$1</span>');
+
+      // Parse Wiki Links [[Link]]
+      html = html.replace(/\[\[(.*?)\]\]/g, (match, linkName) => {
+        return `<span class="wiki-link" onclick="handleWikiClick('${linkName}')">${linkName}</span>`;
+      });
+
+      return html.replace(/\n$/gim, '<br>');
+    }
+
+    function handleWikiClick(linkName) {
+      if (!vault[linkName]) {
+        if (confirm(`Note "${linkName}" doesn't exist. Create it now?`)) {
+          createNewNote(linkName);
+        }
+      } else {
+        openNote(linkName);
+      }
+    }
+
+    function renderPreview() {
+      previewEl.innerHTML = parseMarkdown(editorEl.value);
+    }
+
+    function switchMode(mode) {
+      activeMode = mode;
+      document.getElementById('btn-edit').classList.toggle('active', mode === 'edit');
+      document.getElementById('btn-preview').classList.toggle('active', mode === 'preview');
+      if (mode === 'edit') {
+        editorEl.style.display = 'block';
+        previewEl.style.display = 'none';
+      } else {
+        saveCurrentNote();
+        editorEl.style.display = 'none';
+        previewEl.style.display = 'block';
+      }
+    }
+
+    // --- Backlinks Calculation ---
+    function updateBacklinks() {
+      backlinksEl.innerHTML = '';
+      if (!currentNoteTitle) return;
+      
+      const mentions = [];
+      Object.keys(vault).forEach(title => {
+        if (title !== currentNoteTitle) {
+          const wikiPattern = new RegExp(`\\[\\[${currentNoteTitle}\\]\\]`, 'i');
+          if (wikiPattern.test(vault[title])) {
+            mentions.push(title);
+          }
+        }
+      });
+
+      if (mentions.length === 0) {
+        backlinksEl.textContent = 'No linked mentions.';
+      } else {
+        mentions.forEach(sourceTitle => {
+          const div = document.createElement('div');
+          div.className = 'file-item';
+          div.textContent = `← ${sourceTitle}`;
+          div.onclick = () => openNote(sourceTitle);
+          backlinksEl.appendChild(div);
+        });
+      }
+    }
+
+    // --- Inline Auto-Suggest Popup (`[[`) ---
+    function handleEditorInput(e) {
+      saveCurrentNote();
+      const cursor = editorEl.selectionStart;
+      const textBeforeCursor = editorEl.value.substring(0, cursor);
+      const match = textBeforeCursor.match(/\[\[([^\]]*)$/);
+
+      if (match) {
+        const query = match[1].toLowerCase();
+        const matches = Object.keys(vault).filter(t => t.toLowerCase().includes(query));
+        
+        if (matches.length > 0) {
+          showSuggestions(matches, query);
+        } else {
+          suggestPopup.style.display = 'none';
+        }
+      } else {
+        suggestPopup.style.display = 'none';
+      }
+    }
+
+    function showSuggestions(list, query) {
+      suggestPopup.innerHTML = '';
+      suggestPopup.style.display = 'block';
+      suggestPopup.style.left = `30px`;
+      suggestPopup.style.top = `180px`;
+
+      list.forEach(title => {
+        const item = document.createElement('div');
+        item.className = 'suggest-item';
+        item.textContent = title;
+        item.onclick = () => {
+          const cursor = editorEl.selectionStart;
+          const text = editorEl.value;
+          const lastIndex = text.lastIndexOf('[[', cursor);
+          editorEl.value = text.substring(0, lastIndex) + `[[${title}]]` + text.substring(cursor);
+          suggestPopup.style.display = 'none';
+          saveCurrentNote();
+        };
+        suggestPopup.appendChild(item);
+      });
+    }
+
+    // --- Interactive Graph Engine ---
+    function drawGraph() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight - 30;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const nodes = Object.keys(vault).map((title, idx) => ({
+        id: title,
+        x: 50 + (idx * 90) % (canvas.width - 100),
+        y: 40 + (idx * 50) % (canvas.height - 60)
+      }));
+
+      const links = [];
+      nodes.forEach(node => {
+        const content = vault[node.id];
+        const matches = content.matchAll(/\[\[(.*?)\]\]/g);
+        for (const match of matches) {
+          const target = nodes.find(n => n.id === match[1]);
+          if (target) links.push({ source: node, target });
+        }
+      });
+
+      // Draw connections
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 1;
+      links.forEach(link => {
+        ctx.beginPath();
+        ctx.moveTo(link.source.x, link.source.y);
+        ctx.lineTo(link.target.x, link.target.y);
+        ctx.stroke();
+      });
+
+      // Draw node points
+      nodes.forEach(node => {
+        ctx.fillStyle = node.id === currentNoteTitle ? '#7b5ea7' : '#8e8e93';
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#dcddde';
+        ctx.font = '10px Arial';
+        ctx.fillText(node.id, node.x + 9, node.y + 3);
+      });
+    }
+
+    // Initial Demo Note Creation
+    window.onload = () => {
+      if (Object.keys(vault).length === 0) {
+        createNewNote("Welcome", "# Welcome to Mini Obsidian\n\nThis is a local plain-text markdown vault.\n\nTry connecting notes with [[Ideas]] or check out your [[Daily Notes]].\n\n#obsidian #pkm");
+        createNewNote("Ideas", "# Ideas\n\n- Build a [[Welcome]] app\n- Add interactive features");
+      }
+    };
+  </script>
+</body>
+</html>
+<!-- Save / Restore Progress Script -->
+<script>
+  // Function to save form or text progress
+  function saveProgress() {
+    const inputs = document.querySelectorAll('input, textarea, select');
+    const data = {};
+
+    inputs.forEach(input => {
+      if (input.id) {
+        if (input.type === 'checkbox' || input.type === 'radio') {
+          data[input.id] = input.checked;
+        } else {
+          data[input.id] = input.value;
+        }
+      }
+    });
+
+    localStorage.setItem('userProgressData', JSON.stringify(data));
+    console.log('Progress saved!');
+  }
+
+  // Function to load saved progress on page start
+  function loadProgress() {
+    const savedData = localStorage.getItem('userProgressData');
+    if (!savedData) return;
+
+    const data = JSON.parse(savedData);
+    Object.keys(data).forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        if (element.type === 'checkbox' || element.type === 'radio') {
+          element.checked = data[id];
+        } else {
+          element.value = data[id];
+        }
+      }
+    });
+  }
+
+  // Auto-save whenever any input field changes
+  document.addEventListener('input', saveProgress);
+
+  // Load progress when the page finishes loading
+  document.addEventListener('DOMContentLoaded', loadProgress);
+</script>

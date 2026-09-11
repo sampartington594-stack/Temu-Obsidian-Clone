@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vaukt - Local Markdown Knowledge Engine</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#181818',
+                            sidebar: '#141414',
+                            card: '#1e1e1e',
+                            border: '#2a2a2a',
+                            hover: '#262626',
+                            active: '#2c2c2c',
+                            text: '#e0e0e0',
+                            muted: '#888888',
+                            accent: '#a855f7'
+                        },
+                        light: {
+                            bg: '#fcfcfc',
+                            sidebar: '#f4f4f5',
+                            card: '#ffffff',
+                            border: '#e4e4e7',
+                            hover: '#f1f1f3',
+                            active: '#e4e4e7',
+                            text: '#18181b',
+                            muted: '#71717a',
+                            accent: '#9333ea'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js for Markdown Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .font-mono-custom { font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(150, 150, 150, 0.4); }
+    </style>
+</head>
+<body class="bg-dark-bg text-dark-text h-screen flex flex-col overflow-hidden select-none transition-colors duration-150" id="appBody">
+
+    <!-- Top Window Drag / Tab Bar Header -->
+    <header class="h-10 bg-dark-sidebar border-b border-dark-border flex items-center justify-between px-3 shrink-0 select-none" id="topHeader">
+        <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar flex-1 mr-4" id="tabContainer">
+            <!-- Tabs injected dynamically -->
+        </div>
+        
+        <div class="flex items-center space-x-2 shrink-0">
+            <button onclick="createNewTab()" title="New Tab (Cmd/Ctrl + T)" class="w-7 h-7 flex items-center justify-center rounded hover:bg-dark-hover text-dark-muted hover:text-dark-text transition">
+                <i class="fa-solid fa-plus text-xs"></i>
+            </button>
+            <div class="h-4 w-[1px] bg-dark-border mx-1"></div>
+            <button onclick="toggleGraphSidebar()" title="Toggle Graph View" id="graphToggleBtn" class="px-2.5 py-1 rounded text-xs flex items-center space-x-1.5 bg-dark-card border border-dark-border hover:bg-dark-hover transition text-dark-muted hover:text-dark-text">
+                <i class="fa-solid fa-chart-network text-dark-accent"></i>
+                <span class="font-medium">Graph</span>
+            </button>
+            <button onclick="exportMarkdown()" title="Export Note" class="px-2.5 py-1 rounded text-xs flex items-center space-x-1.5 bg-dark-card border border-dark-border hover:bg-dark-hover transition text-dark-muted hover:text-dark-text">
+                <i class="fa-solid fa-download text-xs"></i>
+                <span class="font-medium">Export .md</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left Sidebar: Notebook Navigator -->
+        <aside class="w-72 bg-dark-sidebar border-r border-dark-border flex flex-col shrink-0 select-none" id="leftSidebar">
+            <!-- Sidebar Header & Search -->
+            <div class="p-3 border-b border-dark-border space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-5 h-5 rounded bg-dark-accent/20 flex items-center justify-center text-dark-accent">
+                            <i class="fa-solid fa-book-bookmark text-xs"></i>
+                        </div>
+                        <span class="font-semibold text-xs tracking-wide uppercase text-dark-text">Notebook Navigator</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button onclick="createNewNote()" title="New Note" class="w-6 h-6 flex items-center justify-center rounded hover:bg-dark-hover text-dark-muted hover:text-dark-text">
+                            <i class="fa-solid fa-file-circle-plus text-xs"></i>
+                        </button>
+                        <button onclick="openSettingsModal()" title="Settings" class="w-6 h-6 flex items-center justify-center rounded hover:bg-dark-hover text-dark-muted hover:text-dark-text">
+                            <i class="fa-solid fa-gear text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-2.5 top-2.5 text-xs text-dark-muted"></i>
+                    <input type="text" id="searchInput" placeholder="Quick open note... (Shift + K)" oninput="handleSearch(this.value)" class="w-full bg-dark-card border border-dark-border rounded text-xs pl-8 pr-8 py-1.5 text-dark-text placeholder-dark-muted focus:outline-none focus:border-dark-accent transition">
+                    <span class="absolute right-2 top-2 text-[10px] text-dark-muted bg-dark-border/50 px-1 rounded">⌘K</span>
+                </div>
+            </div>
+
+            <!-- Folders / Categories Quick Header -->
+            <div class="px-3 py-2 border-b border-dark-border/50 flex items-center justify-between text-[11px] text-dark-muted font-medium uppercase tracking-wider">
+                <span>Folders</span>
+                <button onclick="createNewFolder()" class="hover:text-dark-text"><i class="fa-solid fa-folder-plus"></i></button>
+            </div>
+            <div id="folderList" class="px-2 py-1.5 space-y-0.5 border-b border-dark-border max-h-36 overflow-y-auto">
+                <!-- Folders injected -->
+            </div>
+
+            <!-- Notes List Section -->
+            <div class="flex-1 overflow-y-auto p-2 space-y-1" id="notesListContainer">
+                <!-- Notes list injected dynamically -->
+            </div>
+
+            <!-- Tags Filter Bar Footer -->
+            <div class="p-2 border-t border-dark-border bg-dark-card/50">
+                <div class="text-[10px] uppercase font-semibold text-dark-muted mb-1.5">Tags</div>
+                <div id="sidebarTagsList" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                    <!-- Tags injected -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Editor Area -->
+        <main class="flex-1 flex flex-col bg-dark-bg overflow-hidden relative" id="editorMainArea">
+            <div id="editorWrapper" class="flex-1 flex flex-col h-full overflow-hidden">
+                <!-- Note Content Rendered Here -->
+            </div>
+        </main>
+
+        <!-- Right Graph Sidebar -->
+        <aside id="graphSidebar" class="w-96 bg-dark-sidebar border-l border-dark-border flex flex-col shrink-0 hidden transition-all duration-200">
+            <div class="p-3 border-b border-dark-border flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-chart-network text-dark-accent text-xs"></i>
+                    <span class="font-semibold text-xs uppercase tracking-wide">Graph View</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="bg-dark-card border border-dark-border rounded p-0.5 flex text-[10px]">
+                        <button onclick="setGraphMode('links')" id="graphModeLinks" class="px-2 py-0.5 rounded bg-dark-accent text-white font-medium transition">Links</button>
+                        <button onclick="setGraphMode('tags')" id="graphModeTags" class="px-2 py-0.5 rounded text-dark-muted hover:text-dark-text transition">Tags</button>
+                    </div>
+                    <button onclick="toggleGraphSidebar()" class="w-6 h-6 flex items-center justify-center rounded hover:bg-dark-hover text-dark-muted hover:text-dark-text">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 relative bg-dark-card/20 overflow-hidden flex items-center justify-center" id="graphCanvasContainer">
+                <canvas id="graphCanvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+                <div class="absolute bottom-3 right-3 flex items-center space-x-1 bg-dark-card/90 border border-dark-border rounded p-1 shadow-lg backdrop-blur">
+                    <button onclick="zoomGraph(1.2)" class="w-6 h-6 rounded hover:bg-dark-hover flex items-center justify-center text-xs text-dark-text"><i class="fa-solid fa-plus"></i></button>
+                    <button onclick="zoomGraph(0.8)" class="w-6 h-6 rounded hover:bg-dark-hover flex items-center justify-center text-xs text-dark-text"><i class="fa-solid fa-minus"></i></button>
+                    <button onclick="resetGraphZoom()" title="Reset View" class="w-6 h-6 rounded hover:bg-dark-hover flex items-center justify-center text-xs text-dark-text"><i class="fa-solid fa-expand"></i></button>
+                </div>
+            </div>
+            <div class="p-2 border-t border-dark-border bg-dark-card/50 text-xs text-dark-muted flex justify-between items-center">
+                <span id="graphStats">0 nodes, 0 connections</span>
+                <button onclick="renderGraph()" class="text-[11px] text-dark-accent hover:underline">Refresh</button>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Modals & Context menus container -->
+    <div id="modalContainer"></div>
+
+    <!-- Application Logic -->
+    <script>
+        // --- State Management ---
+        let state = {
+            notes: [
+                {
+                    id: 'note-1',
+                    title: 'Welcome to Vaukt',
+                    content: `# Welcome to Vaukt\n\nYour local-first, markdown-based knowledge vault inspired by Obsidian & Notion.\n\n## Core Features\n- **Multi-Tab Interface**: Open multiple notes simultaneously (Cmd/Ctrl + T).\n- **Graph Visualization**: Explore connections between notes via links ([[Welcome to Vaukt]]) or shared tags.\n- **Bidirectional Links**: Type [[ to link notes instantly.\n\n## Quick Links\n- Check out [[Project Roadmap]] for upcoming features.\n- Review [[Quick Thoughts]] for raw notes.\n\n#idea #imported`,
+                    folder: 'General',
+                    tags: ['idea', 'imported'],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'note-2',
+                    title: 'Project Roadmap',
+                    content: `# Project Roadmap\n\nGoals for building out Vaukt:\n1. Enhance graph network performance.\n2. Add folder import/export utilities.\n3. Implement robust local search indexing.\n\n#project #business`,
+                    folder: 'Academics',
+                    tags: ['project', 'business'],
+                    createdAt: new Date(Date.now() - 86400000).toISOString(),
+                    updatedAt: new Date(Date.now() - 86400000).toISOString()
+                },
+                {
+                    id: 'note-3',
+                    title: 'Quick Thoughts',
+                    content: `# Quick Thoughts\n\nRandom musings on UI design and minimal interfaces. Simplicity is sophistication.\n\n#short_form`,
+                    folder: 'General',
+                    tags: ['short_form'],
+                    createdAt: new Date(Date.now() - 172800000).toISOString(),
+                    updatedAt: new Date(Date.now() - 172800000).toISOString()
+                }
+            ],
+            folders: ['General', 'Academics', 'Projects', 'Archive'],
+            openTabs: ['note-1'],
+            activeTabId: 'note-1',
+            selectedNoteIds: [],
+            searchQuery: '',
+            selectedFolderFilter: null,
+            selectedTagFilter: null,
+            settings: {
+                theme: 'dark',
+                font: 'mono', // 'mono' or 'sans'
+            },
+            graph: {
+                mode: 'links', // 'links' or 'tags'
+                sidebarOpen: false,
+                zoom: 1,
+                panX: 0,
+                panY: 0
+            }
+        };
+
+        // Local Storage persistence
+        function saveToLocalStorage() {
+            localStorage.setItem('vaukt_state', JSON.stringify({
+                notes: state.notes,
+                folders: state.folders,
+                openTabs: state.openTabs,
+                activeTabId: state.activeTabId,
+                settings: state.settings
+            }));
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('vaukt_state');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.notes = parsed.notes || state.notes;
+                    state.folders = parsed.folders || state.folders;
+                    state.openTabs = parsed.openTabs || state.openTabs;
+                    state.activeTabId = parsed.activeTabId || state.activeTabId;
+                    if (parsed.settings) state.settings = parsed.settings;
+                } catch(e) { console.error(e); }
+            }
+        }
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            applySettings();
+            renderAll();
+            setupEventListeners();
+        });
+
+        function applySettings() {
+            const body = document.getElementById('appBody');
+            if (state.settings.theme === 'light') {
+                body.className = 'bg-light-bg text-light-text h-screen flex flex-col overflow-hidden select-none transition-colors duration-150 light';
+            } else {
+                body.className = 'bg-dark-bg text-dark-text h-screen flex flex-col overflow-hidden select-none transition-colors duration-150 dark';
+            }
+        }
+
+        function renderAll() {
+            renderTabs();
+            renderFolders();
+            renderNotesList();
+            renderTagsSidebar();
+            renderActiveEditor();
+            if (state.graph.sidebarOpen) {
+                renderGraph();
+            }
+        }
+
+        // --- Tab Management ---
+        function renderTabs() {
+            const container = document.getElementById('tabContainer');
+            container.innerHTML = '';
+
+            if (state.openTabs.length === 0) {
+                container.innerHTML = `<span class="text-xs text-dark-muted italic px-2">No file is open</span>`;
+                return;
+            }
+
+            state.openTabs.forEach((noteId, index) => {
+                const note = state.notes.find(n => n.id === noteId);
+                if (!note) return;
+
+                const isActive = noteId === state.activeTabId;
+                const tab = document.createElement('div');
+                tab.className = `flex items-center space-x-2 px-3 py-1.5 rounded-t text-xs cursor-pointer border-t-2 transition max-w-[180px] shrink-0 ${
+                    isActive 
+                        ? 'bg-dark-card border-dark-accent text-dark-text shadow-sm' 
+                        : 'bg-dark-sidebar border-transparent text-dark-muted hover:bg-dark-hover hover:text-dark-text'
+                }`;
+                tab.onclick = (e) => {
+                    if (e.target.closest('.close-tab')) return;
+                    switchTab(noteId);
+                };
+
+                tab.innerHTML = `
+                    <i class="fa-regular fa-file-lines text-dark-accent/70 text-[11px]"></i>
+                    <span class="truncate flex-1 font-medium">${escapeHtml(note.title || 'Untitled Note')}</span>
+                    <button onclick="closeTab('${noteId}')" class="close-tab w-4 h-4 rounded-full hover:bg-dark-border flex items-center justify-center text-dark-muted hover:text-dark-text">
+                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                    </button>
+                `;
+                container.appendChild(tab);
+            });
+        }
+
+        function createNewTab() {
+            const newId = 'note-' + Date.now();
+            const newNote = {
+                id: newId,
+                title: 'Untitled Note',
+                content: `# Untitled Note\n\nType note content... Press '/' to autocomplete page links!\n\n#idea`,
+                folder: state.selectedFolderFilter || 'General',
+                tags: ['idea'],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            state.notes.unshift(newNote);
+            state.openTabs.push(newId);
+            state.activeTabId = newId;
+            saveToLocalStorage();
+            renderAll();
+        }
+
+        function createNewNote() {
+            createNewTab();
+        }
+
+        function switchTab(noteId) {
+            state.activeTabId = noteId;
+            renderAll();
+        }
+
+        function closeTab(noteId) {
+            const idx = state.openTabs.indexOf(noteId);
+            if (idx > -1) {
+                state.openTabs.splice(idx, 1);
+            }
+            if (state.activeTabId === noteId) {
+                state.activeTabId = state.openTabs.length > 0 ? state.openTabs[state.openTabs.length - 1] : null;
+            }
+            saveToLocalStorage();
+            renderAll();
+        }
+
+        // --- Notebook Sidebar & Folders ---
+        function renderFolders() {
+            const container = document.getElementById('folderList');
+            container.innerHTML = '';
+
+            // All notes option
+            const allDiv = document.createElement('div');
+            allDiv.className = `flex items-center justify-between px-2 py-1 rounded text-xs cursor-pointer transition ${!state.selectedFolderFilter ? 'bg-dark-active text-dark-text font-semibold' : 'text-dark-muted hover:bg-dark-hover hover:text-dark-text'}`;
+            allDiv.onclick = () => { state.selectedFolderFilter = null; renderAll(); };
+            allDiv.innerHTML = `<div class="flex items-center space-x-2"><i class="fa-solid fa-folder-open text-amber-500"></i><span>All Notes</span></div><span class="text-[10px] bg-dark-card px-1.5 py-0.2 rounded">${state.notes.length}</span>`;
+            container.appendChild(allDiv);
+
+            state.folders.forEach(folder => {
+                const count = state.notes.filter(n => n.folder === folder).length;
+                const isSelected = state.selectedFolderFilter === folder;
+                const fDiv = document.createElement('div');
+                fDiv.className = `flex items-center justify-between px-2 py-1 rounded text-xs cursor-pointer transition ${isSelected ? 'bg-dark-active text-dark-text font-semibold' : 'text-dark-muted hover:bg-dark-hover hover:text-dark-text'}`;
+                fDiv.onclick = () => { state.selectedFolderFilter = folder; renderAll(); };
+                fDiv.innerHTML = `<div class="flex items-center space-x-2"><i class="fa-solid fa-folder text-blue-400"></i><span class="truncate">${escapeHtml(folder)}</span></div><span class="text-[10px] bg-dark-card px-1.5 py-0.2 rounded">${count}</span>`;
+                container.appendChild(fDiv);
+            });
+        }
+
+        function createNewFolder() {
+            const folderName = prompt('Enter new folder name:');
+            if (folderName && !state.folders.includes(folderName)) {
+                state.folders.push(folderName);
+                saveToLocalStorage();
+                renderFolders();
+            }
+        }
+
+        function renderNotesList() {
+            const container = document.getElementById('notesListContainer');
+            container.innerHTML = '';
+
+            let filtered = state.notes.filter(n => {
+                if (state.selectedFolderFilter && n.folder !== state.selectedFolderFilter) return false;
+                if (state.selectedTagFilter && (!n.tags || !n.tags.includes(state.selectedTagFilter))) return false;
+                if (state.searchQuery) {
+                    const q = state.searchQuery.toLowerCase();
+                    return (n.title && n.title.toLowerCase().includes(q)) || (n.content && n.content.toLowerCase().includes(q));
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-xs text-dark-muted italic">No notes found</div>`;
+                return;
+            }
+
+            filtered.forEach(note => {
+                const isActive = note.id === state.activeTabId;
+                const isSelected = state.selectedNoteIds.includes(note.id);
+                
+                const card = document.createElement('div');
+                card.className = `p-2.5 rounded-lg border cursor-pointer transition relative group ${
+                    isActive 
+                        ? 'bg-dark-card border-dark-accent shadow-sm' 
+                        : isSelected 
+                            ? 'bg-dark-active border-dark-border' 
+                            : 'bg-dark-card/60 border-dark-border hover:bg-dark-card hover:border-dark-muted/50'
+                }`;
+                
+                card.onclick = (e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                        e.preventDefault();
+                        toggleSelectNote(note.id, e.shiftKey);
+                    } else {
+                        if (!state.openTabs.includes(note.id)) {
+                            state.openTabs.push(note.id);
+                        }
+                        switchTab(note.id);
+                    }
+                };
+
+                const snippet = note.content ? note.content.replace(/#.*?\n/g, '').trim().substring(0, 60) + '...' : 'Empty note...';
+                const dateStr = new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-1">
+                        <div class="flex items-center space-x-2 truncate pr-2">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelectNote('${note.id}')" class="rounded bg-dark-bg border-dark-border text-dark-accent focus:ring-0 cursor-pointer">
+                            <span class="font-semibold text-xs text-dark-text truncate">${escapeHtml(note.title || 'Untitled Note')}</span>
+                        </div>
+                        <span class="text-[10px] text-dark-muted shrink-0">${dateStr}</span>
+                    </div>
+                    <p class="text-[11px] text-dark-muted line-clamp-2 pl-5 mb-1.5">${escapeHtml(snippet)}</p>
+                    <div class="flex items-center justify-between pl-5">
+                        <div class="flex flex-wrap gap-1">
+                            ${(note.tags || []).map(t => `<span class="text-[9px] bg-dark-bg text-dark-accent px-1.5 py-0.5 rounded border border-dark-border">#${t}</span>`).join('')}
+                        </div>
+                        <button onclick="event.stopPropagation(); deleteNote('${note.id}')" class="opacity-0 group-hover:opacity-100 text-dark-muted hover:text-red-400 p-1 transition"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function toggleSelectNote(id, isShift = false) {
+            const idx = state.selectedNoteIds.indexOf(id);
+            if (idx > -1) {
+                state.selectedNoteIds.splice(idx, 1);
+            } else {
+                state.selectedNoteIds.push(id);
+            }
+            renderNotesList();
+        }
+
+        function deleteNote(id) {
+            if (confirm('Are you sure you want to delete this note?')) {
+                state.notes = state.notes.filter(n => n.id !== id);
+                state.openTabs = state.openTabs.filter(tid => tid !== id);
+                if (state.activeTabId === id) {
+                    state.activeTabId = state.openTabs.length > 0 ? state.openTabs[state.openTabs.length - 1] : null;
+                }
+                saveToLocalStorage();
+                renderAll();
+            }
+        }
+
+        function handleSearch(val) {
+            state.searchQuery = val;
+            renderNotesList();
+        }
+
+        function renderTagsSidebar() {
+            const container = document.getElementById('sidebarTagsList');
+            container.innerHTML = '';
+            
+            const allTags = {};
+            state.notes.forEach(n => {
+                if (n.tags) {
+                    n.tags.forEach(t => allTags[t] = (allTags[t] || 0) + 1);
+                }
+            });
+
+            Object.keys(allTags).forEach(tag => {
+                const isSelected = state.selectedTagFilter === tag;
+                const badge = document.createElement('button');
+                badge.className = `text-[10px] px-2 py-0.5 rounded border transition flex items-center space-x-1 ${
+                    isSelected 
+                        ? 'bg-dark-accent text-white border-dark-accent font-medium' 
+                        : 'bg-dark-card text-dark-muted border-dark-border hover:border-dark-accent/50 hover:text-dark-text'
+                }`;
+                badge.onclick = () => {
+                    state.selectedTagFilter = isSelected ? null : tag;
+                    renderAll();
+                };
+                badge.innerHTML = `<span>#${tag}</span><span class="opacity-60 text-[9px]">(${allTags[tag]})</span>`;
+                container.appendChild(badge);
+            });
+        }
+
+        // --- Active Note Editor ---
+        function renderActiveEditor() {
+            const container = document.getElementById('editorWrapper');
+            container.innerHTML = '';
+
+            if (!state.activeTabId || state.openTabs.length === 0) {
+                container.innerHTML = `
+                    <div class="flex-1 flex flex-col items-center justify-center p-8 text-center text-dark-muted">
+                        <div class="w-16 h-16 rounded-full bg-dark-card border border-dark-border flex items-center justify-center mb-4 text-dark-accent text-2xl shadow-inner">
+                            <i class="fa-solid fa-file-circle-plus"></i>
+                        </div>
+                        <h2 class="text-base font-semibold text-dark-text mb-1">No file is open</h2>
+                        <p class="text-xs max-w-sm mb-4">Select a note from the sidebar or create a new tab to start writing with markdown and bi-directional links.</p>
+                        <button onclick="createNewTab()" class="px-4 py-2 bg-dark-accent text-white rounded text-xs font-semibold hover:opacity-90 transition shadow">Create New Note</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const note = state.notes.find(n => n.id === state.activeTabId);
+            if (!note) return;
+
+            container.innerHTML = `
+                <!-- Editor Top Toolbar -->
+                <div class="h-11 border-b border-dark-border px-4 flex items-center justify-between shrink-0 bg-dark-card/20">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-xs text-dark-muted"><i class="fa-solid fa-folder text-blue-400 mr-1.5"></i>${escapeHtml(note.folder)}</span>
+                        <div class="h-3 w-[1px] bg-dark-border"></div>
+                        <span class="text-xs text-dark-muted"><i class="fa-regular fa-clock mr-1"></i>${new Date(note.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="flex bg-dark-card border border-dark-border rounded p-0.5 text-xs">
+                            <button onclick="switchEditMode('edit')" id="modeEditBtn" class="px-2.5 py-1 rounded bg-dark-accent text-white font-medium transition">Edit</button>
+                            <button onclick="switchEditMode('preview')" id="modePreviewBtn" class="px-2.5 py-1 rounded text-dark-muted hover:text-dark-text transition">Preview</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editor Body Area -->
+                <div class="flex-1 flex flex-col overflow-y-auto p-6 max-w-4xl mx-auto w-full" id="editorContentArea">
+                    <input type="text" id="noteTitleInput" value="${escapeHtml(note.title)}" oninput="updateNoteTitle(this.value)" placeholder="Note Title..." class="text-2xl font-bold bg-transparent text-dark-text border-none focus:outline-none mb-4 placeholder-dark-muted/40">
+                    
+                    <!-- Tags Display & Input -->
+                    <div class="flex flex-wrap items-center gap-1.5 mb-4 pb-3 border-b border-dark-border/60">
+                        <span class="text-[11px] text-dark-muted font-medium mr-1"><i class="fa-solid fa-tags mr-1"></i>Tags:</span>
+                        ${(note.tags || []).map(t => `
+                            <span class="inline-flex items-center space-x-1 text-xs bg-dark-card border border-dark-border text-dark-accent px-2 py-0.5 rounded">
+                                <span>#${t}</span>
+                                <button onclick="removeTagFromNote('${note.id}', '${t}')" class="hover:text-red-400"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+                            </span>
+                        `).join('')}
+                        <button onclick="addTagPrompt('${note.id}')" class="text-[11px] text-dark-muted hover:text-dark-text border border-dashed border-dark-border px-2 py-0.5 rounded transition"><i class="fa-solid fa-plus mr-1"></i>Add tag</button>
+                    </div>
+
+                    <!-- Main Textarea / Preview Container -->
+                    <div id="editorPane" class="flex-1 flex flex-col relative">
+                        <textarea id="noteTextarea" oninput="updateNoteContent(this.value)" placeholder="Type note content... Use [[Note Title]] for page links." class="w-full flex-1 bg-transparent text-dark-text text-sm resize-none focus:outline-none font-mono-custom leading-relaxed placeholder-dark-muted/40">${escapeHtml(note.content || '')}</textarea>
+                    </div>
+                    <div id="previewPane" class="flex-1 hidden prose prose-invert max-w-none text-sm text-dark-text overflow-y-auto">
+                        <!-- Markdown rendered output -->
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateNoteTitle(val) {
+            const note = state.notes.find(n => n.id === state.activeTabId);
+            if (note) {
+                note.title = val;
+                note.updatedAt = new Date().toISOString();
+                saveToLocalStorage();
+                renderTabs();
+                renderNotesList();
+            }
+        }
+
+        function updateNoteContent(val) {
+            const note = state.notes.find(n => n.id === state.activeTabId);
+            if (note) {
+                note.content = val;
+                note.updatedAt = new Date().toISOString();
+                
+                // Auto-detect hashtags
+                const hashtagMatches = val.match(/#[a-zA-Z0-9_-]+/g);
+                if (hashtagMatches) {
+                    const tags = hashtagMatches.map(tag => tag.substring(1));
+                    note.tags = Array.from(new Set(tags));
+                }
+                
+                saveToLocalStorage();
+                renderNotesList();
+            }
+        }
+
+        function switchEditMode(mode) {
+            const editBtn = document.getElementById('modeEditBtn');
+            const previewBtn = document.getElementById('modePreviewBtn');
+            const textarea = document.getElementById('noteTextarea');
+            const previewPane = document.getElementById('previewPane');
+
+            const note = state.notes.find(n => n.id === state.activeTabId);
+
+            if (mode === 'edit') {
+                editBtn.className = "px-2.5 py-1 rounded bg-dark-accent text-white font-medium transition";
+                previewBtn.className = "px-2.5 py-1 rounded text-dark-muted hover:text-dark-text transition";
+                textarea.classList.remove('hidden');
+                previewPane.classList.add('hidden');
+            } else {
+                previewBtn.className = "px-2.5 py-1 rounded bg-dark-accent text-white font-medium transition";
+                editBtn.className = "px-2.5 py-1 rounded text-dark-muted hover:text-dark-text transition";
+                textarea.classList.add('hidden');
+                previewPane.classList.remove('hidden');
+
+                // Parse markdown and [[links]]
+                let contentHtml = marked.parse(note.content || '');
+                // Convert [[Link]] to interactive links
+                contentHtml = contentHtml.replace(/\[\[(.*?)\]\]/g, (match, p1) => {
+                    return `<span onclick="openLinkedNote('${p1}')" class="text-dark-accent underline cursor-pointer font-medium hover:opacity-80">${p1}</span>`;
+                });
+                previewPane.innerHTML = contentHtml;
+            }
+        }
+
+        function openLinkedNote(title) {
+            let target = state.notes.find(n => n.title.toLowerCase() === title.toLowerCase());
+            if (!target) {
+                // Create note if not exists
+                const newId = 'note-' + Date.now();
+                target = {
+                    id: newId,
+                    title: title,
+                    content: `# ${title}\n\nCreated via bidirectional link.`,
+                    folder: 'General',
+                    tags: ['linked'],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                state.notes.unshift(target);
+            }
+            if (!state.openTabs.includes(target.id)) {
+                state.openTabs.push(target.id);
+            }
+            switchTab(target.id);
+        }
+
+        function addTagPrompt(noteId) {
+            const tag = prompt('Enter tag name (without #):');
+            if (tag) {
+                const note = state.notes.find(n => n.id === noteId);
+                if (note) {
+                    if (!note.tags) note.tags = [];
+                    if (!note.tags.includes(tag.trim())) {
+                        note.tags.push(tag.trim());
+                        saveToLocalStorage();
+                        renderActiveEditor();
+                        renderTagsSidebar();
+                    }
+                }
+            }
+        }
+
+        function removeTagFromNote(noteId, tag) {
+            const note = state.notes.find(n => n.id === noteId);
+            if (note && note.tags) {
+                note.tags = note.tags.filter(t => t !== tag);
+                saveToLocalStorage();
+                renderActiveEditor();
+                renderTagsSidebar();
+            }
+        }
+
+        // --- Export Utility ---
+        function exportMarkdown() {
+            const note = state.notes.find(n => n.id === state.activeTabId);
+            if (!note) return;
+            const blob = new Blob([note.content], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(note.title || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- Graph Visualization ---
+        function toggleGraphSidebar() {
+            state.graph.sidebarOpen = !state.graph.sidebarOpen;
+            const sidebar = document.getElementById('graphSidebar');
+            const btn = document.getElementById('graphToggleBtn');
+            if (state.graph.sidebarOpen) {
+                sidebar.classList.remove('hidden');
+                btn.className = "px-2.5 py-1 rounded text-xs flex items-center space-x-1.5 bg-dark-active border border-dark-accent text-dark-text transition shadow-sm";
+                renderGraph();
+            } else {
+                sidebar.classList.add('hidden');
+                btn.className = "px-2.5 py-1 rounded text-xs flex items-center space-x-1.5 bg-dark-card border border-dark-border hover:bg-dark-hover transition text-dark-muted hover:text-dark-text";
+            }
+        }
+
+        function setGraphMode(mode) {
+            state.graph.mode = mode;
+            const linkBtn = document.getElementById('graphModeLinks');
+            const tagBtn = document.getElementById('graphModeTags');
+            if (mode === 'links') {
+                linkBtn.className = "px-2.5 py-0.5 rounded bg-dark-accent text-white font-medium transition";
+                tagBtn.className = "px-2.5 py-0.5 rounded text-dark-muted hover:text-dark-text transition";
+            } else {
+                tagBtn.className = "px-2.5 py-0.5 rounded bg-dark-accent text-white font-medium transition";
+                linkBtn.className = "px-2.5 py-0.5 rounded text-dark-muted hover:text-dark-text transition";
+            }
+            renderGraph();
+        }
+
+        function zoomGraph(factor) {
+            state.graph.zoom *= factor;
+            renderGraph();
+        }
+
+        function resetGraphZoom() {
+            state.graph.zoom = 1;
+            state.graph.panX = 0;
+            state.graph.panY = 0;
+            renderGraph();
+        }
+
+        function renderGraph() {
+            const canvas = document.getElementById('graphCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Compute nodes & edges based on mode
+            let nodes = [];
+            let edges = [];
+
+            if (state.graph.mode === 'links') {
+                nodes = state.notes.map(n => ({ id: n.id, label: n.title, val: 1 }));
+                state.notes.forEach(n => {
+                    if (!n.content) return;
+                    const links = n.content.match(/\[\[(.*?)\]\]/g);
+                    if (links) {
+                        links.forEach(l => {
+                            const title = l.replace(/\[\[|\]\]/g, '').trim();
+                            const target = state.notes.find(t => t.title.toLowerCase() === title.toLowerCase());
+                            if (target) {
+                                edges.push({ source: n.id, target: target.id });
+                            }
+                        });
+                    }
+                });
+            } else {
+                // Tag mode
+                const tagMap = {};
+                state.notes.forEach(n => {
+                    if (n.tags) {
+                        n.tags.forEach(t => {
+                            if (!tagMap[t]) tagMap[t] = [];
+                            tagMap[t].push(n.id);
+                        });
+                    }
+                });
+                nodes = Object.keys(tagMap).map(t => ({ id: t, label: '#' + t, val: tagMap[t].length }));
+                // Create edges between tags that share notes
+                const tags = Object.keys(tagMap);
+                for (let i = 0; i < tags.length; i++) {
+                    for (let j = i + 1; j < tags.length; j++) {
+                        const shared = tagMap[tags[i]].some(id => tagMap[tags[j]].includes(id));
+                        if (shared) {
+                            edges.push({ source: tags[i], target: tags[j] });
+                        }
+                    }
+                }
+            }
+
+            document.getElementById('graphStats').innerText = `${nodes.length} nodes, ${edges.length} connections`;
+
+            // Layout nodes in a circle
+            const centerX = (canvas.width / 2) + state.graph.panX;
+            const centerY = (canvas.height / 2) + state.graph.panY;
+            const radius = Math.min(canvas.width, canvas.height) * 0.3 * state.graph.zoom;
+
+            const nodePositions = {};
+            nodes.forEach((node, i) => {
+                const angle = (i / nodes.length) * 2 * Math.PI;
+                nodePositions[node.id] = {
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle),
+                    label: node.label
+                };
+            });
+
+            // Draw edges
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+            ctx.lineWidth = 1.5;
+            edges.forEach(edge => {
+                const p1 = nodePositions[edge.source];
+                const p2 = nodePositions[edge.target];
+                if (p1 && p2) {
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            });
+
+            // Draw nodes
+            Object.keys(nodePositions).forEach(id => {
+                const p = nodePositions[id];
+                ctx.fillStyle = '#a855f7';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 6 * Math.sqrt(state.graph.zoom), 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.fillStyle = '#e0e0e0';
+                ctx.font = '11px sans-serif';
+                ctx.fillText(p.label, p.x + 10, p.y + 4);
+            });
+        }
+
+        // --- Settings Modal ---
+        function openSettingsModal() {
+            const container = document.getElementById('modalContainer');
+            container.innerHTML = `
+                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-dark-card border border-dark-border rounded-xl w-full max-w-md p-6 shadow-2xl">
+                        <div class="flex items-center justify-between pb-4 border-b border-dark-border mb-4">
+                            <h3 class="font-bold text-sm text-dark-text flex items-center space-x-2">
+                                <i class="fa-solid fa-gear text-dark-accent"></i>
+                                <span>Vaukt Settings</span>
+                            </h3>
+                            <button onclick="closeModal()" class="text-dark-muted hover:text-dark-text"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs font-medium text-dark-muted block mb-2">Appearance Theme</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="setTheme('dark')" class="p-3 rounded border text-xs font-semibold flex items-center justify-center space-x-2 ${state.settings.theme === 'dark' ? 'bg-dark-accent text-white border-dark-accent' : 'bg-dark-sidebar border-dark-border text-dark-text'}">
+                                        <i class="fa-solid fa-moon"></i><span>Dark Mode</span>
+                                    </button>
+                                    <button onclick="setTheme('light')" class="p-3 rounded border text-xs font-semibold flex items-center justify-center space-x-2 ${state.settings.theme === 'light' ? 'bg-dark-accent text-white border-dark-accent' : 'bg-dark-sidebar border-dark-border text-dark-text'}">
+                                        <i class="fa-solid fa-sun"></i><span>Light Mode</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-dark-border flex justify-end">
+                            <button onclick="closeModal()" class="px-4 py-2 bg-dark-accent text-white rounded text-xs font-semibold hover:opacity-90">Save & Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setTheme(theme) {
+            state.settings.theme = theme;
+            saveToLocalStorage();
+            applySettings();
+            openSettingsModal(); // Refresh modal active state
+        }
+
+        function closeModal() {
+            document.getElementById('modalContainer').innerHTML = '';
+        }
+
+        // --- Global Keyboard Shortcuts ---
+        function setupEventListeners() {
+            window.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    createNewTab();
+                }
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    document.getElementById('searchInput').focus();
+                }
+                if ((e.metaKey || e.ctrlKey) && !isNaN(e.key) && e.key !== '0') {
+                    e.preventDefault();
+                    const index = parseInt(e.key) - 1;
+                    if (state.openTabs[index]) {
+                        switchTab(state.openTabs[index]);
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

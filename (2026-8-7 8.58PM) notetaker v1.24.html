@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian PKM Note Taker</title>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-titlebar: #0f0f11;
+            --bg-ribbon: #16161a;
+            --bg-sidebar: #1e1e24;
+            --bg-editor: #18181c;
+            --bg-card: #25252e;
+            --bg-hover: #2d2d38;
+            --bg-active: #343442;
+            --border-color: #2b2b36;
+            
+            --text-normal: #dcddde;
+            --text-muted: #8a8e9b;
+            --text-faint: #5a5e6b;
+            
+            --accent-purple: #7c3aed;
+            --accent-purple-light: #a78bfa;
+            --accent-purple-glow: rgba(124, 58, 237, 0.25);
+            --tag-bg: rgba(167, 139, 250, 0.12);
+            --pill-bg: #2a2238;
+            
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-ui);
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-titlebar);
+            color: var(--text-normal);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 13px;
+        }
+
+        /* Top Title Bar / Mac Window Header */
+        .window-header {
+            height: 38px;
+            background: var(--bg-titlebar);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            -webkit-app-region: drag;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mac-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .mac-close { background: #ff5f56; }
+        .mac-min { background: #ffbd2e; }
+        .mac-max { background: #27c93f; }
+
+        .window-title {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Main Layout */
+        .app-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Leftmost Navigation Ribbon */
+        .ribbon {
+            width: 44px;
+            background: var(--bg-ribbon);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            gap: 16px;
+            color: var(--text-muted);
+        }
+
+        .ribbon-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-size: 14px;
+        }
+
+        .ribbon-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        .ribbon-btn.active {
+            color: var(--accent-purple-light);
+            background: var(--accent-purple-glow);
+        }
+
+        /* Left Sidebar Pane (File Explorer & Tags) */
+        .sidebar {
+            width: 250px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 12px 14px 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .vault-name {
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 8px;
+            color: var(--text-muted);
+        }
+
+        .sidebar-actions i {
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .sidebar-actions i:hover {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        /* Search Box */
+        .search-container {
+            padding: 0 10px 10px 10px;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input-wrapper i {
+            position: absolute;
+            left: 10px;
+            color: var(--text-faint);
+            font-size: 11px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--bg-ribbon);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 6px 8px 6px 28px;
+            color: var(--text-normal);
+            font-size: 12px;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-purple);
+        }
+
+        /* File List Tree */
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 8px;
+        }
+
+        .tree-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            padding: 8px 8px 4px 8px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            transition: background 0.1s ease;
+        }
+
+        .file-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        .file-item.active {
+            background: var(--bg-active);
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-item i.pin-icon {
+            font-size: 10px;
+            color: #f59e0b;
+        }
+
+        /* Tags Drawer Bottom Left */
+        .tags-pane {
+            border-top: 1px solid var(--border-color);
+            padding: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+            background: var(--bg-ribbon);
+        }
+
+        .tag-pill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .tag-pill {
+            background: var(--tag-bg);
+            color: var(--accent-purple-light);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tag-pill:hover, .tag-pill.active {
+            background: var(--accent-purple);
+            color: #ffffff;
+        }
+
+        /* Main Workspace Split */
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-editor);
+            overflow: hidden;
+        }
+
+        /* Top Tabs Bar */
+        .tab-bar {
+            height: 36px;
+            background: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+            gap: 4px;
+        }
+
+        .tab {
+            height: 28px;
+            padding: 0 12px;
+            background: var(--bg-ribbon);
+            border-radius: 4px 4px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+        }
+
+        .tab.active {
+            background: var(--bg-editor);
+            color: var(--text-normal);
+            border-color: var(--border-color);
+        }
+
+        .tab-close {
+            font-size: 10px;
+            border-radius: 50%;
+            padding: 2px;
+        }
+
+        .tab-close:hover {
+            background: var(--bg-hover);
+        }
+
+        /* Split Workspace Content Area */
+        .workspace-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Main Editor / Note Panel */
+        .editor-pane {
+            flex: 1;
+            padding: 32px 48px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            user-select: text;
+        }
+
+        /* Obsidian Property Block styling */
+        .properties-block {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .properties-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .property-row {
+            display: grid;
+            grid-template-columns: 100px 1fr;
+            align-items: center;
+            gap: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .property-label {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .property-value {
+            color: var(--accent-purple-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .property-input {
+            background: transparent;
+            border: none;
+            color: var(--text-normal);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            outline: none;
+            width: 100%;
+        }
+
+        .property-input:focus {
+            background: var(--bg-ribbon);
+            border-radius: 3px;
+        }
+
+        /* Note Title Styling */
+        .note-title-input {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-normal);
+            background: transparent;
+            border: none;
+            outline: none;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .note-body-textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-normal);
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            font-family: var(--font-ui);
+            min-height: 250px;
+        }
+
+        /* Graph Canvas Side Pane */
+        .graph-pane {
+            width: 45%;
+            background: #121215;
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .graph-header {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+            background: rgba(22, 22, 26, 0.8);
+            backdrop-filter: blur(4px);
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #graphCanvas {
+            width: 100%;
+            height: 100%;
+            background: #121215;
+        }
+
+        /* Right Side Backlinks Bar */
+        .right-sidebar {
+            width: 220px;
+            background: var(--bg-sidebar);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        .backlinks-header {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .backlink-card {
+            background: var(--bg-ribbon);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        .backlink-card-title {
+            color: var(--accent-purple-light);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .backlink-card-snippet {
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+
+        .wikilink {
+            color: var(--accent-purple-light);
+            background: var(--pill-bg);
+            padding: 1px 4px;
+            border-radius: 3px;
+            text-decoration: none;
+        }
+
+        /* Action Buttons */
+        .btn-toggle-graph {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            background: var(--accent-purple);
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-toggle-graph:hover {
+            background: #6d28d9;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .graph-pane { display: none; }
+            .right-sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Window Top Header Bar -->
+    <header class="window-header">
+        <div class="window-controls">
+            <div class="mac-btn mac-close"></div>
+            <div class="mac-btn mac-min"></div>
+            <div class="mac-btn mac-max"></div>
+        </div>
+        <div class="window-title" id="windowTitle">
+            <i class="fa-solid fa-vault"></i> Obsidian Vault - NoteTaker PKM
+        </div>
+        <div></div>
+    </header>
+
+    <div class="app-container">
+        <!-- Far Left Obsidian Navigation Ribbon -->
+        <nav class="ribbon">
+            <div class="ribbon-btn active" title="Files Explorer"><i class="fa-regular fa-folder-open"></i></div>
+            <div class="ribbon-btn" title="Graph View" onclick="toggleGraphView()"><i class="fa-solid fa-circle-nodes"></i></div>
+            <div class="ribbon-btn" title="New Note" onclick="createNewNote()"><i class="fa-solid fa-plus"></i></div>
+            <div style="flex:1"></div>
+            <div class="ribbon-btn" title="Settings"><i class="fa-solid fa-gear"></i></div>
+        </nav>
+
+        <!-- Sidebar (Notes Tree + Tags) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="vault-name">Personal Vault</span>
+                <div class="sidebar-actions">
+                    <i class="fa-solid fa-file-circle-plus" title="New Note" onclick="createNewNote()"></i>
+                    <i class="fa-solid fa-arrow-down-a-z" title="Sort Notes"></i>
+                </div>
+            </div>
+
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search notes or [[links]]..." oninput="renderSidebar()">
+                </div>
+            </div>
+
+            <!-- Notes List -->
+            <div class="file-tree" id="fileTree">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Tags Filter Drawer -->
+            <div class="tags-pane">
+                <div class="tree-section-label">Tags</div>
+                <div class="tag-pill-list" id="tagPillList">
+                    <!-- Dynamic Tags -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Editor -->
+        <main class="workspace">
+            <!-- Tabs Bar -->
+            <div class="tab-bar">
+                <div class="tab active" id="activeTabTitle">
+                    <i class="fa-regular fa-file-lines"></i>
+                    <span id="tabLabel">Untitled</span>
+                </div>
+            </div>
+
+            <!-- Active Workspace Area -->
+            <div class="workspace-content">
+                <!-- Note Editor Pane -->
+                <div class="editor-pane">
+                    <!-- Note Title Input -->
+                    <input type="text" id="noteTitle" class="note-title-input" placeholder="Note Title..." oninput="updateCurrentNote()">
+
+                    <!-- Obsidian YAML Metadata Properties Block -->
+                    <div class="properties-block">
+                        <div class="properties-title"><i class="fa-solid fa-sliders"></i> Properties</div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-regular fa-clock"></i> created</span>
+                            <span class="property-value" id="propCreated">--</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-arrow-rotate-right"></i> updated</span>
+                            <span class="property-value" id="propUpdated">--</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-tag"></i> tags</span>
+                            <input type="text" id="propTags" class="property-input" placeholder="comma separated tags..." onchange="updateCurrentNote()">
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label"><i class="fa-solid fa-thumbtack"></i> pinned</span>
+                            <input type="checkbox" id="propPinned" onchange="togglePinCurrentNote()">
+                        </div>
+                    </div>
+
+                    <!-- Note Content Body -->
+                    <textarea id="noteContent" class="note-body-textarea" placeholder="Start typing... Use [[WikiLinks]] to connect notes!" oninput="updateCurrentNote()"></textarea>
+                </div>
+
+                <!-- Interactive Canvas Graph Pane Side-by-Side -->
+                <div class="graph-pane" id="graphPane">
+                    <div class="graph-header">
+                        <i class="fa-solid fa-circle-nodes"></i> Interactive Graph View
+                    </div>
+                    <canvas id="graphCanvas"></canvas>
+                </div>
+
+                <!-- Right Backlinks Sidebar Pane -->
+                <div class="right-sidebar">
+                    <div class="backlinks-header">
+                        <span><i class="fa-solid fa-link"></i> Linked Mentions</span>
+                    </div>
+                    <div id="backlinksList">
+                        <!-- Dynamic Backlinks -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript Engine -->
+    <script>
+        // Sample Initial Data matching Obsidian design screenshot
+        const defaultNotes = [
+            {
+                id: 1,
+                title: "richard hendrix",
+                content: "CEO of Pied Piper. Working on middle-out compression algorithm.\n\nAssociated with [[030 Interests MOC]] and [[010 Mindsets MOC]].\n\nKey discussion notes:\n- Compression metrics outperform competition.\n- Decentralized web infrastructure planned.",
+                tags: "people, pied_piper",
+                pinned: true,
+                created: "10/30/2025, 22:39",
+                updated: "10/30/2025, 22:40"
+            },
+            {
+                id: 2,
+                title: "Habits MOC - Unifying Phase",
+                content: "Enjoy and Use - Enjoy the spatial constellation created.\n\nUnderstanding Habits:\n- Habit formation provides an evolutionary advantage\n- Small Wins foster a Sense of Control\n- An asymptotic curve models development",
+                tags: "MOC, habits, PKM",
+                pinned: true,
+                created: "10/28/2025, 14:10",
+                updated: "10/29/2025, 18:22"
+            },
+            {
+                id: 3,
+                title: "010 Mindsets MOC",
+                content: "Central index for cognitive frameworks, mental models, and personal productivity guidelines.",
+                tags: "MOC, mindsets",
+                pinned: false,
+                created: "10/25/2025, 09:15",
+                updated: "10/25/2025, 09:15"
+            }
+        ];
+
+        // Core State
+        let notes = JSON.parse(localStorage.getItem('obsidian_pkm_notes')) || defaultNotes;
+        let activeNoteId = notes[0] ? notes[0].id : null;
+        let activeTagFilter = null;
+        let isGraphVisible = true;
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            renderSidebar();
+            renderTags();
+            loadNote(activeNoteId);
+            initGraph();
+            window.addEventListener('resize', drawGraph);
+        });
+
+        function saveToStorage() {
+            localStorage.setItem('obsidian_pkm_notes', JSON.stringify(notes));
+        }
+
+        function createNewNote() {
+            const now = new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
+            const newNote = {
+                id: Date.now(),
+                title: "Untitled Note",
+                content: "",
+                tags: "new",
+                pinned: false,
+                created: now,
+                updated: now
+            };
+            notes.unshift(newNote);
+            saveToStorage();
+            renderSidebar();
+            renderTags();
+            loadNote(newNote.id);
+        }
+
+        function loadNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+
+            activeNoteId = id;
+            document.getElementById('noteTitle').value = note.title;
+            document.getElementById('noteContent').value = note.content;
+            document.getElementById('propCreated').innerText = note.created;
+            document.getElementById('propUpdated').innerText = note.updated;
+            document.getElementById('propTags').value = note.tags || '';
+            document.getElementById('propPinned').checked = !!note.pinned;
+
+            document.getElementById('tabLabel').innerText = note.title || 'Untitled';
+
+            renderSidebar();
+            renderBacklinks();
+            drawGraph();
+        }
+
+        function updateCurrentNote() {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+
+            note.title = document.getElementById('noteTitle').value;
+            note.content = document.getElementById('noteContent').value;
+            note.tags = document.getElementById('propTags').value;
+            note.updated = new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
+
+            document.getElementById('propUpdated').innerText = note.updated;
+            document.getElementById('tabLabel').innerText = note.title || 'Untitled';
+
+            saveToStorage();
+            renderSidebar();
+            renderTags();
+            renderBacklinks();
+            drawGraph();
+        }
+
+        function togglePinCurrentNote() {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            note.pinned = document.getElementById('propPinned').checked;
+            saveToStorage();
+            renderSidebar();
+        }
+
+        function deleteNote(id, event) {
+            event.stopPropagation();
+            if (notes.length <= 1) {
+                alert("Cannot delete the last remaining note.");
+                return;
+            }
+            notes = notes.filter(n => n.id !== id);
+            saveToStorage();
+
+            if (activeNoteId === id) {
+                activeNoteId = notes[0].id;
+            }
+
+            renderSidebar();
+            renderTags();
+            loadNote(activeNoteId);
+        }
+
+        /* Sidebar rendering */
+        function renderSidebar() {
+            const tree = document.getElementById('fileTree');
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            tree.innerHTML = '';
+
+            let filtered = notes.filter(n => {
+                const matchesSearch = n.title.toLowerCase().includes(searchVal) || n.content.toLowerCase().includes(searchVal);
+                const matchesTag = activeTagFilter ? n.tags.split(',').map(t => t.trim()).includes(activeTagFilter) : true;
+                return matchesSearch && matchesTag;
+            });
+
+            // Sort Pinned to top
+            filtered.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+            if (filtered.length === 0) {
+                tree.innerHTML = `<div style="padding:12px; color:var(--text-faint); text-align:center;">No files found</div>`;
+                return;
+            }
+
+            filtered.forEach(note => {
+                const item = document.createElement('div');
+                item.className = `file-item ${note.id === activeNoteId ? 'active' : ''}`;
+                item.onclick = () => loadNote(note.id);
+
+                item.innerHTML = `
+                    <div class="file-info">
+                        <i class="fa-regular fa-file-lines"></i>
+                        <span>${escapeHtml(note.title || 'Untitled')}</span>
+                    </div>
+                    <div>
+                        ${note.pinned ? '<i class="fa-solid fa-thumbtack pin-icon"></i>' : ''}
+                        <i class="fa-solid fa-xmark" style="font-size:11px; margin-left:6px; opacity:0.5;" title="Delete" onclick="deleteNote(${note.id}, event)"></i>
+                    </div>
+                `;
+                tree.appendChild(item);
+            });
+        }
+
+        /* Tags Drawer */
+        function renderTags() {
+            const list = document.getElementById('tagPillList');
+            list.innerHTML = '';
+
+            const tagMap = {};
+            notes.forEach(n => {
+                if (n.tags) {
+                    n.tags.split(',').forEach(t => {
+                        const clean = t.trim();
+                        if (clean) tagMap[clean] = (tagMap[clean] || 0) + 1;
+                    });
+                }
+            });
+
+            Object.keys(tagMap).forEach(tag => {
+                const pill = document.createElement('div');
+                pill.className = `tag-pill ${activeTagFilter === tag ? 'active' : ''}`;
+                pill.innerHTML = `#${tag} <span style="opacity:0.6; font-size:9px;">${tagMap[tag]}</span>`;
+                pill.onclick = () => {
+                    activeTagFilter = activeTagFilter === tag ? null : tag;
+                    renderTags();
+                    renderSidebar();
+                };
+                list.appendChild(pill);
+            });
+        }
+
+        /* Backlinks Panel */
+        function renderBacklinks() {
+            const container = document.getElementById('backlinksList');
+            container.innerHTML = '';
+
+            const currentNote = notes.find(n => n.id === activeNoteId);
+            if (!currentNote) return;
+
+            // Find other notes mentioning [[currentNote.title]]
+            const targetWiki = `[[${currentNote.title.toLowerCase()}]]`;
+            const mentions = notes.filter(n => n.id !== currentNote.id && n.content.toLowerCase().includes(targetWiki));
+
+            if (mentions.length === 0) {
+                container.innerHTML = `<div style="font-size:11px; color:var(--text-faint);">No linked mentions</div>`;
+                return;
+            }
+
+            mentions.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'backlink-card';
+                card.onclick = () => loadNote(m.id);
+                card.innerHTML = `
+                    <div class="backlink-card-title">${escapeHtml(m.title)}</div>
+                    <div class="backlink-card-snippet">...mentions <span class="wikilink">[[${escapeHtml(currentNote.title)}]]</span>...</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        /* Interactive Obsidian Canvas Graph */
+        let canvas, ctx;
+        function initGraph() {
+            canvas = document.getElementById('graphCanvas');
+            ctx = canvas.getContext('2d');
+            drawGraph();
+        }
+
+        function drawGraph() {
+            if (!canvas) return;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (notes.length === 0) return;
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(canvas.width, canvas.height) * 0.32;
+
+            // Calculate Node Positions in a Orbit Layout
+            const nodePositions = {};
+            notes.forEach((note, index) => {
+                const angle = (index / notes.length) * Math.PI * 2;
+                nodePositions[note.id] = {
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle),
+                    title: note.title,
+                    isActive: note.id === activeNoteId
+                };
+            });
+
+            // Draw Connections (WikiLinks)
+            ctx.strokeStyle = "rgba(124, 58, 237, 0.3)";
+            ctx.lineWidth = 1.5;
+
+            notes.forEach(note => {
+                notes.forEach(target => {
+                    if (note.id !== target.id && note.content.toLowerCase().includes(`[[${target.title.toLowerCase()}]]`)) {
+                        const start = nodePositions[note.id];
+                        const end = nodePositions[target.id];
+                        if (start && end) {
+                            ctx.beginPath();
+                            ctx.moveTo(start.x, start.y);
+                            ctx.lineTo(end.x, end.y);
+                            ctx.stroke();
+                        }
+                    }
+                });
+            });
+
+            // Draw Nodes
+            Object.keys(nodePositions).forEach(id => {
+                const node = nodePositions[id];
+
+                // Node Circle
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.isActive ? 8 : 5, 0, Math.PI * 2);
+                ctx.fillStyle = node.isActive ? "#a78bfa" : "#7c3aed";
+                ctx.fill();
+
+                if (node.isActive) {
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                // Node Text Label
+                ctx.fillStyle = node.isActive ? "#ffffff" : "#8a8e9b";
+                ctx.font = "10px sans-serif";
+                ctx.fillText(node.title, node.x + 12, node.y + 3);
+            });
+        }
+
+        function toggleGraphView() {
+            const pane = document.getElementById('graphPane');
+            isGraphVisible = !isGraphVisible;
+            pane.style.display = isGraphVisible ? 'flex' : 'none';
+            if (isGraphVisible) drawGraph();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
+
+ 
